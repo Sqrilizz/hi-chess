@@ -1,0 +1,31 @@
+[package]
+name = "hi-chess"
+version = "0.2.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+rust-version = "1.95"
+authors = ["sqrilizz"]
+description = "HI is a Rust chess engine with human-like play levels"
+
+[[bin]]
+name = "hi"
+path = "src/main.rs"
+
+[dependencies]
+burn = { version = "=0.22.1", features = [
+    "std",
+    "wgpu",
+    "autodiff",
+    "optim",
+    "store",
+    "safetensors",
+] }
+chess = "3.2"
+pgn-reader = "=0.29.2"
+rand = "0.9"
+zstd = "=0.14.5"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
