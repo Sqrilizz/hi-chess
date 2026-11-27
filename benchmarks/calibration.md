@@ -176,6 +176,42 @@ Late move reductions reached depth 9 in about 0.52 seconds and depth 10 in about
 
 The aggressive reduction policy was rejected.
 
+## Rejected expanded-evaluation experiment
+
+A tapered evaluation with pawn structure, rook files and king safety reduced search speed by roughly 20% and did not improve match results:
+
+| Level | Opponent | Stable | Expanded evaluation |
+|---:|---:|---:|---:|
+| 3 | Stockfish 1400 | 8-4-8, 50.0% | 4-5-11, 32.5% |
+| 5 | Stockfish 2100 | 1-0-19, 5.0% | 0-0-20, 0.0% |
+
+The evaluation experiment was rejected.
+
+## Policy-guided full search
+
+HI 0.9.0 uses the `hi-v2` policy to order root candidates for every level. Level 5 now searches the 32 most likely model moves with full depth and a small policy bonus instead of ignoring the neural model.
+
+| Level | Opponent | Before policy guidance | With policy guidance |
+|---:|---:|---:|---:|
+| 3 | Stockfish 1400 | 8-4-8, 50.0% | 11-2-7, 60.0% |
+| 5 | Stockfish 2100 | 1-0-19, 5.0% | 7-1-12, 37.5% |
+
+Rough HI Elo improved from 1391 to 1439 on Level 3 and from 1900 to 2037 on Level 5.
+
+## Final HI 0.9.0 calibration
+
+Twenty games per level at 5+0.05:
+
+| Level | Opponent Elo | W-D-L | Score | Rough HI Elo |
+|---:|---:|---:|---:|---:|
+| 1 | 800 | 1-1-18 | 7.5% | 610.4 |
+| 2 | 1100 | 2-1-17 | 12.5% | 927.0 |
+| 3 | 1400 | 8-3-9 | 47.5% | 1398.5 |
+| 4 | 1700 | 6-0-14 | 30.0% | 1622.0 |
+| 5 | 2100 | 9-0-11 | 45.0% | 2065.9 |
+
+The rough Elo estimates are monotonic across all five levels. Level 5 won nine games against Stockfish limited to 2100.
+
 ## Next work
 
 - tune transposition-table size and replacement policy;

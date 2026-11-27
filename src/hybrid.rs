@@ -23,19 +23,31 @@ pub fn filter_candidates(
     let Some(policy) = policy else {
         return moves;
     };
-    if candidate_count >= moves.len() {
-        return moves;
-    }
-
     let candidates = top_policy_moves(policy, candidate_count);
-    moves
+    let mut filtered: Vec<ChessMove> = moves
         .into_iter()
         .filter(|chess_move| {
             candidates
                 .iter()
                 .any(|candidate| candidate.chess_move == *chess_move)
         })
-        .collect()
+        .collect();
+    filtered.sort_unstable_by(|left, right| {
+        policy_probability(policy, *right)
+            .partial_cmp(&policy_probability(policy, *left))
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.cmp(right))
+    });
+    filtered
+}
+
+fn policy_probability(policy: &Policy, chess_move: ChessMove) -> f32 {
+    policy
+        .moves
+        .iter()
+        .find(|policy_move| policy_move.chess_move == chess_move)
+        .map(|policy_move| policy_move.probability)
+        .unwrap_or(0.0)
 }
 
 pub fn select_move(
@@ -88,6 +100,7 @@ mod tests {
         let moves = chess::MoveGen::new_legal(&board).collect();
         let filtered = filter_candidates(moves, Some(&policy()), 2);
         assert_eq!(filtered.len(), 2);
+        assert_eq!(filtered[0], ChessMove::new(Square::E2, Square::E4, None));
         assert!(filtered.contains(&ChessMove::new(Square::E2, Square::E4, None)));
         assert!(filtered.contains(&ChessMove::new(Square::D2, Square::D4, None)));
     }

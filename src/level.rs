@@ -53,9 +53,9 @@ pub fn profile(level: u8) -> LevelProfile {
         _ => LevelProfile {
             own_elo: 2_100,
             temperature: 0.5,
-            candidate_count: usize::MAX,
+            candidate_count: 32,
             max_depth: 128,
-            policy_weight: 0,
+            policy_weight: 5,
             sample_policy: false,
             max_score_drop: 0,
         },
@@ -89,6 +89,8 @@ mod tests {
         assert!(!profile(MAX_LEVEL).sample_policy);
         assert!(profile(3).max_depth < profile(4).max_depth);
         assert!(profile(4).max_depth < profile(MAX_LEVEL).max_depth);
+        assert_eq!(profile(MAX_LEVEL).candidate_count, 32);
+        assert!(profile(MAX_LEVEL).policy_weight > 0);
     }
 
     #[test]

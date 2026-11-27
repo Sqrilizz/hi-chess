@@ -97,7 +97,7 @@ impl Engine {
     }
 
     fn ensure_model(&mut self) {
-        if !self.options.use_model || self.options.level == 5 {
+        if !self.options.use_model {
             self.model = None;
             return;
         }
@@ -139,26 +139,22 @@ impl Engine {
             }
             level::profile(5)
         };
-        let policy = if self.options.level == 5 {
-            None
-        } else {
-            self.model.as_ref().and_then(|model| {
-                match model.predict(
-                    &board,
-                    level_profile.own_elo,
-                    self.options.opponent_elo,
-                    halfmove_clock,
-                    self.position.last_move,
-                    level_profile.temperature,
-                ) {
-                    Ok(policy) => Some(policy),
-                    Err(error) => {
-                        emit(&format!("info string model inference failed: {error}"));
-                        None
-                    }
+        let policy = self.model.as_ref().and_then(|model| {
+            match model.predict(
+                &board,
+                level_profile.own_elo,
+                self.options.opponent_elo,
+                halfmove_clock,
+                self.position.last_move,
+                level_profile.temperature,
+            ) {
+                Ok(policy) => Some(policy),
+                Err(error) => {
+                    emit(&format!("info string model inference failed: {error}"));
+                    None
                 }
-            })
-        };
+            }
+        });
         let effective_profile = if policy.is_some() {
             level_profile
         } else {
