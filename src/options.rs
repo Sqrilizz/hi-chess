@@ -1,7 +1,7 @@
 use crate::level::{MAX_LEVEL, MIN_LEVEL};
 use std::path::PathBuf;
 
-const DEFAULT_MODEL_PATH: &str = "models/hi-v1.bpk";
+const DEFAULT_MODEL_PATH: &str = "models/hi-v2.bpk";
 const DEFAULT_LEVEL: u8 = 3;
 const DEFAULT_OPPONENT_ELO: u16 = 1_500;
 

@@ -160,7 +160,7 @@ struct PredictOptions {
 impl PredictOptions {
     fn parse(arguments: &[String]) -> Result<Self, String> {
         let mut options = Self {
-            model: PathBuf::from("models/hi-v1.bpk"),
+            model: PathBuf::from("models/hi-v2.bpk"),
             fen: START_FEN.to_string(),
             elo: 1_500,
             opponent_elo: 1_500,

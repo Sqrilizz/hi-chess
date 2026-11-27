@@ -132,6 +132,33 @@ Level 4 was changed from 16 candidates at depth 8 with policy weight 10 to 8 can
 
 The profile was kept because it spends search time more deliberately, but the match does not prove a strength change. The rough Elo ordering remains monotonic: Level 3 ~1280, Level 4 ~1500, Level 5 ~1900.
 
+## `hi-v2` model
+
+The default model was retrained on 960,000 training positions and evaluated on 96,000 validation positions:
+
+| Metric | `hi-v1` | `hi-v2` |
+|---|---:|---:|
+| top-1 | 33.59% | 37.46% |
+| top-3 | 58.73% | 63.83% |
+| WDL accuracy | 61.97% | 62.72% |
+| validation loss | 2.5764 | 2.3525 |
+
+`hi-v2` is the default model starting with HI 0.6.0.
+
+## `hi-v2` level calibration
+
+Twenty games per level at 5+0.05 against strength-limited Stockfish:
+
+| Level | Opponent Elo | W-D-L | Score | Rough HI Elo |
+|---:|---:|---:|---:|---:|
+| 1 | 800 | 1-0-19 | 5.0% | 599.6 |
+| 2 | 1100 | 2-0-18 | 10.0% | 928.3 |
+| 3 | 1400 | 8-4-8 | 50.0% | 1391.2 |
+| 4 | 1700 | 1-0-19 | 5.0% | 1499.6 |
+| 5 | 2100 | 1-0-19 | 5.0% | 1899.6 |
+
+Level 3 improved dramatically with the larger model. Levels 1 and 2 were retuned to lower sampling temperature and narrower safety windows; Level 2 improved from 0% to 10%, while Level 1 remained at 5%.
+
 ## Next work
 
 - tune transposition-table size and replacement policy;

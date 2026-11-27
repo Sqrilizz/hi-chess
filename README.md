@@ -71,7 +71,7 @@ After `go`, HI emits `info` lines followed by `bestmove`. The `stop` command end
 
 ```text
 setoption name UseModel value true
-setoption name ModelPath value models/hi-v1.bpk
+setoption name ModelPath value models/hi-v2.bpk
 setoption name Level value 3
 setoption name OpponentElo value 1500
 ```
@@ -124,8 +124,8 @@ Download it into `data/`, then run:
   --input data/lichess_db_standard_rated_2014-12.pgn.zst \
   --train data/train.bin \
   --validation data/validation.bin \
-  --max-train 240000 \
-  --max-validation 24000
+  --max-train 960000 \
+  --max-validation 96000
 ```
 
 The pipeline keeps ratings from 600 to 2200, skips the first 10 plies, samples up to 24 positions per game and splits complete games into train and validation sets in a 9:1 ratio.
@@ -136,10 +136,10 @@ Datasets and model weights are ignored by Git and must be generated locally.
 
 ```bash
 ./target/release/hi train \
-  --train data/train.bin \
-  --validation data/validation.bin \
-  --output models/hi-v1.bpk \
-  --epochs 6 \
+  --train data/train-large.bin \
+  --validation data/validation-large.bin \
+  --output models/hi-v2.bpk \
+  --epochs 4 \
   --batch-size 128 \
   --learning-rate 0.001 \
   --device discrete
@@ -155,24 +155,24 @@ The model is a compact Burn CNN with approximately 3.26 million parameters:
 
 Training and inference are implemented in Rust. GPU execution uses wgpu/Vulkan.
 
-### `hi-v1` quality
+### `hi-v2` quality
 
-Measured on 24,017 validation positions:
+Measured on 96,000 validation positions:
 
-- best epoch: 3;
-- top-1 human move accuracy: **33.59%**;
-- top-3 human move accuracy: **58.73%**;
-- WDL accuracy: **61.97%**;
-- validation loss: 2.5764;
+- best epoch: 4;
+- top-1 human move accuracy: **37.46%**;
+- top-3 human move accuracy: **63.83%**;
+- WDL accuracy: **62.72%**;
+- validation loss: 2.3525;
 - model size: approximately 13 MB.
 
-Later epochs began to overfit, so `models/hi-v1.bpk` contains the best epoch rather than the final one.
+The model was trained on 960,000 positions from 46,441 games. The best validation epoch is saved in `models/hi-v2.bpk`.
 
 ## Inspect model predictions
 
 ```bash
 ./target/release/hi predict \
-  --model models/hi-v1.bpk \
+  --model models/hi-v2.bpk \
   --fen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" \
   --elo 1500 \
   --opponent-elo 1600 \

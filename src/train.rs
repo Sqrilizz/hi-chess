@@ -59,7 +59,7 @@ impl TrainOptions {
         let mut options = Self {
             train: PathBuf::from("data/train.bin"),
             validation: PathBuf::from("data/validation.bin"),
-            output: PathBuf::from("models/hi-v1.bpk"),
+            output: PathBuf::from("models/hi-v2.bpk"),
             epochs: 10,
             batch_size: 128,
             learning_rate: 1e-3,

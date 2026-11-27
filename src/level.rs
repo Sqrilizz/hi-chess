@@ -16,21 +16,21 @@ pub fn profile(level: u8) -> LevelProfile {
     match level.clamp(MIN_LEVEL, MAX_LEVEL) {
         1 => LevelProfile {
             own_elo: 800,
-            temperature: 1.4,
+            temperature: 1.0,
             candidate_count: 6,
             max_depth: 2,
             policy_weight: 0,
             sample_policy: true,
-            max_score_drop: 300,
+            max_score_drop: 250,
         },
         2 => LevelProfile {
             own_elo: 1_100,
-            temperature: 1.1,
+            temperature: 0.8,
             candidate_count: 8,
             max_depth: 2,
             policy_weight: 0,
             sample_policy: true,
-            max_score_drop: 200,
+            max_score_drop: 150,
         },
         3 => LevelProfile {
             own_elo: 1_400,
