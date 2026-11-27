@@ -159,6 +159,23 @@ Twenty games per level at 5+0.05 against strength-limited Stockfish:
 
 Level 3 improved dramatically with the larger model. Levels 1 and 2 were retuned to lower sampling temperature and narrower safety windows; Level 2 improved from 0% to 10%, while Level 1 remained at 5%.
 
+## Rejected multi-threaded search experiment
+
+A root-parallel search with per-worker heuristics and a shared transposition table reached about 11–12M aggregate NPS with six threads. Fixed-depth time was not consistently better because parallel root windows duplicated work. In a 20-game Level 5 match against Stockfish 2100, six threads scored the same 1-0-19, 5.0% as one thread.
+
+The experiment was rejected and is not part of the stable engine.
+
+## Rejected late-move-reduction experiment
+
+Late move reductions reached depth 9 in about 0.52 seconds and depth 10 in about 1.97 seconds from the starting position, versus depth 8 before. However, match strength regressed:
+
+| Level | Opponent | Stable | With LMR |
+|---:|---:|---:|---:|
+| 3 | Stockfish 1400 | 8-4-8, 50.0% | 4-5-11, 32.5% |
+| 5 | Stockfish 2100 | 1-0-19, 5.0% | 0-0-20, 0.0% |
+
+The aggressive reduction policy was rejected.
+
 ## Next work
 
 - tune transposition-table size and replacement policy;
