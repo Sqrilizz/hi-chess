@@ -104,6 +104,17 @@ A guarded null-move prototype reduced the three-position depth-7 total from 4,14
 
 The prototype was rejected and is not part of HI 0.4.1.
 
+## Rejected check-extension experiment
+
+A bounded check-extension prototype increased the three-position depth-7 total from 3,965,059 to 4,652,702 nodes and time from 923 ms to 1133 ms. Match results did not improve:
+
+| Level | Opponent | TT + PVS | With check extensions |
+|---:|---:|---:|---:|
+| 3 | Stockfish 1400 | 20.0% in the TT sample | 3-3-14, 22.5% |
+| 5 | Stockfish 2100 | 1-0-19, 5.0% | 1-0-19, 5.0% |
+
+The prototype was rejected and is not part of HI 0.4.2.
+
 ## Next work
 
 - tune transposition-table size and replacement policy;
