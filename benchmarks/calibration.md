@@ -82,6 +82,17 @@ HI 0.4.1 added PVS to internal alpha-beta nodes. Fixed-depth results:
 
 Scores and best moves were unchanged on all three positions.
 
+## Rejected null-move experiment
+
+A guarded null-move prototype reduced the three-position depth-7 total from 4,149,851 to 2,259,254 nodes, but changed scores and best moves on two positions. Match results were mixed:
+
+| Level | Opponent | TT + PVS | With null-move |
+|---:|---:|---:|---:|
+| 3 | Stockfish 1400 | 2-4-14, 20.0% | 2-6-12, 25.0% |
+| 5 | Stockfish 2100 | 1-0-19, 5.0% | 0-0-20, 0.0% |
+
+The prototype was rejected and is not part of HI 0.4.1.
+
 ## Next work
 
 - tune transposition-table size and replacement policy;
