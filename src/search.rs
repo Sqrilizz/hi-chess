@@ -842,7 +842,7 @@ mod tests {
     fn low_level_samples_from_policy() {
         let board = Board::default();
         let mut logits = [0.0; POLICY_MOVES];
-        logits[move_index(ChessMove::new(Square::E2, Square::E4, None))] = 20.0;
+        logits[move_index(&board, ChessMove::new(Square::E2, Square::E4, None))] = 20.0;
         let policy = policy_from_logits(&board, &logits, [0.0; 3], 1.0);
         let mut search = Search::new(SearchLimits::default(), atomic_stop());
         let result = search.search_with_policy(

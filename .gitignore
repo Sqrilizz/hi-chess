@@ -3,5 +3,6 @@
 /data/*.zst
 /models/
 /matches/
+/benchmarks/*.log
 /engines/
 /skills/

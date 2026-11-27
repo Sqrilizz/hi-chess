@@ -39,8 +39,8 @@ fn run_prepare(arguments: &[String]) {
         Ok(options) => options,
         Err(error) => fail(&error),
     };
-    match prepare::prepare_compressed(
-        &options.input,
+    match prepare::prepare_compressed_files(
+        &options.inputs,
         &options.train,
         &options.validation,
         options.max_train,
@@ -160,7 +160,7 @@ struct PredictOptions {
 impl PredictOptions {
     fn parse(arguments: &[String]) -> Result<Self, String> {
         let mut options = Self {
-            model: PathBuf::from("models/hi-v2.bpk"),
+            model: PathBuf::from("models/hi-v3.bpk"),
             fen: START_FEN.to_string(),
             elo: 1_500,
             opponent_elo: 1_500,
@@ -227,7 +227,7 @@ fn print_usage() {
     println!("  hi");
     println!("  hi perft <fen> <depth>");
     println!(
-        "  hi prepare --input <games.pgn.zst> [--train <train.bin>] [--validation <validation.bin>]"
+        "  hi prepare --input <games.pgn.zst> [--input <more.pgn.zst> ...] [--train <train.bin>] [--validation <validation.bin>]"
     );
     println!(
         "  hi train [--train <train.bin>] [--validation <validation.bin>] [--output <model.bpk>]"

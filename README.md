@@ -71,7 +71,7 @@ After `go`, HI emits `info` lines followed by `bestmove`. The `stop` command end
 
 ```text
 setoption name UseModel value true
-setoption name ModelPath value models/hi-v2.bpk
+setoption name ModelPath value models/hi-v3.bpk
 setoption name Level value 3
 setoption name OpponentElo value 1500
 ```
@@ -82,7 +82,7 @@ setoption name OpponentElo value 1500
 | 2 | ~1100 | Policy sampling with a depth-2 safety filter |
 | 3 | ~1400 | Searches the 8 most likely model candidates |
 | 4 | ~1700 | Searches 8 candidates more deeply with a policy-weight bonus |
-| 5 | ~2100 | Full search guided by the 32 most likely model moves |
+| 5 | ~2100 | Full search guided by the 64 most likely model moves |
 
 These are target profiles, not guaranteed Elo ratings. If the model is unavailable, HI reports the problem and falls back to Level 5 search.
 
@@ -111,51 +111,63 @@ Expected result: `197281`.
 
 Runs fixed-depth searches from the starting position, Kiwipete and an endgame position, then reports nodes, elapsed time and NPS.
 
-## Dataset preparation
+## Dataset and model training
 
-Source dataset: [Lichess Standard, December 2014](https://database.lichess.org/standard/lichess_db_standard_rated_2014-12.pgn.zst), licensed under CC0.
+HI v3 uses rated games from July through October 2026 from [Lichess Standard](https://database.lichess.org/), licensed under CC0. The preparation command accepts repeated `--input` arguments and distributes the requested record limits across all files.
 
-SHA256: `4589a1af622a893d196bc8eaede657652ce65dc79d2f289ff65fadd6a7076af4`.
-
-Download it into `data/`, then run:
+Run the complete streaming dataset and training pipeline:
 
 ```bash
-./target/release/hi prepare \
-  --input data/lichess_db_standard_rated_2014-12.pgn.zst \
-  --train data/train.bin \
-  --validation data/validation.bin \
-  --max-train 960000 \
-  --max-validation 96000
+./scripts/train_v3.sh
 ```
 
-The pipeline keeps ratings from 600 to 2200, skips the first 10 plies, samples up to 24 positions per game and splits complete games into train and validation sets in a 9:1 ratio.
+The script reads only the beginning of each monthly archive needed for the sampling quota, rather than downloading all 30 GB per month. It creates 2,400,000 training positions and 240,000 validation positions, then trains for four epochs on a discrete GPU.
 
-Datasets and model weights are ignored by Git and must be generated locally.
-
-## Train the model
+To train an already prepared dataset:
 
 ```bash
 ./target/release/hi train \
-  --train data/train-large.bin \
-  --validation data/validation-large.bin \
-  --output models/hi-v2.bpk \
+  --train data/train-v3.bin \
+  --validation data/validation-v3.bin \
+  --output models/hi-v3.bpk \
   --epochs 4 \
   --batch-size 128 \
   --learning-rate 0.001 \
   --device discrete
 ```
 
-The model is a compact Burn CNN with approximately 3.26 million parameters:
+The pipeline keeps ratings from 600 to 2200, skips the first 10 plies, samples up to 24 positions per game and splits complete games into train and validation sets in a 9:1 ratio. Policy targets and legal-move masks use the same side-to-move orientation as the input planes. Dataset format v1 is migrated automatically when read; new datasets use format v2.
+
+The current trainer builds the v3 CNN with approximately 2.71 million parameters:
 
 - 23 input channels;
-- 12 internal channels;
-- 4 residual blocks;
+- 64 internal channels;
+- 8 residual blocks;
+- 1x1 policy bottleneck from 64 to 4 channels;
 - 4096-class policy head;
 - three-class WDL head.
 
-Training and inference are implemented in Rust. GPU execution uses wgpu/Vulkan.
+Training and inference are implemented in Rust. GPU execution uses wgpu/Vulkan. Existing v2 weights remain supported for inference with their original absolute policy coordinates.
 
-### `hi-v2` quality
+Datasets and model weights are ignored by Git and must be generated locally.
+
+### `hi-v3` quality
+
+Measured on 240,000 held-out positions from the same four monthly archives:
+
+- best epoch: 4;
+- top-1 human move accuracy: **43.71%**;
+- top-3 human move accuracy: **71.33%**;
+- WDL accuracy: **55.29%**;
+- validation loss: 2.0558;
+- White top-1: **43.39%**;
+- Black top-1: **44.04%**;
+- model size: approximately 11 MB;
+- SHA256: `5dda0c2073dc7659318fa807474f51f2cb8f984131aad83b2b67de6cd61673a5`.
+
+The model was trained on 2,400,000 positions from 115,988 games. The best validation epoch is saved in `models/hi-v3.bpk` and is the default starting with HI 0.10.0. The v2 and v3 accuracy numbers use different datasets and are not a controlled head-to-head comparison. Initial 20-game matches improved every level's score against the same Stockfish targets. In a 100-game Level 5 match against Stockfish 2100, the final v3 profile scored 48.5% versus 39.5% for v2; see [benchmarks/calibration.md](benchmarks/calibration.md).
+
+### Historical `hi-v2` quality
 
 Measured on 96,000 validation positions:
 
@@ -166,13 +178,13 @@ Measured on 96,000 validation positions:
 - validation loss: 2.3525;
 - model size: approximately 13 MB.
 
-The model was trained on 960,000 positions from 46,441 games. The best validation epoch is saved in `models/hi-v2.bpk`.
+The model was trained on 960,000 positions from 46,441 games. The best validation epoch was saved in `models/hi-v2.bpk`.
 
 ## Inspect model predictions
 
 ```bash
 ./target/release/hi predict \
-  --model models/hi-v2.bpk \
+  --model models/hi-v3.bpk \
   --fen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" \
   --elo 1500 \
   --opponent-elo 1600 \

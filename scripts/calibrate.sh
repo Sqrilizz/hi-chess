@@ -6,7 +6,7 @@ games="${2:-10}"
 time_control="${3:-5+0.05}"
 output_dir="${4:-matches/calibration}"
 hi_bin="${HI_BIN:-target/release/hi}"
-model="${HI_MODEL:-models/hi-v2.bpk}"
+model="${HI_MODEL:-models/hi-v3.bpk}"
 ratings=(800 1100 1400 1700 2100)
 
 if [[ ! -x "$stockfish" ]]; then

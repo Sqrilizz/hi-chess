@@ -102,65 +102,99 @@ impl Visitor for GameVisitor {
     }
 }
 
+struct DatasetBuffer {
+    train_records: Vec<TrainingRecord>,
+    validation_records: Vec<TrainingRecord>,
+    stats: PrepareStats,
+}
+
+impl DatasetBuffer {
+    fn new(max_train: usize, max_validation: usize) -> Self {
+        Self {
+            train_records: Vec::with_capacity(max_train),
+            validation_records: Vec::with_capacity(max_validation),
+            stats: PrepareStats::default(),
+        }
+    }
+
+    fn is_full(&self, max_train: usize, max_validation: usize) -> bool {
+        self.train_records.len() >= max_train && self.validation_records.len() >= max_validation
+    }
+
+    fn read(
+        &mut self,
+        mut input: impl Read,
+        max_train: usize,
+        max_validation: usize,
+    ) -> io::Result<()> {
+        let mut reader = Reader::new(&mut input);
+        let mut visitor = GameVisitor;
+
+        while !self.is_full(max_train, max_validation) {
+            let Some(game_result) = reader.read_game(&mut visitor)? else {
+                break;
+            };
+            self.stats.games_scanned += 1;
+            let game = match game_result {
+                Ok(game) => game,
+                Err(_) => {
+                    self.stats.games_skipped += 1;
+                    continue;
+                }
+            };
+            let validation = self.stats.games_scanned.is_multiple_of(VALIDATION_INTERVAL);
+            let train_capacity = max_train.saturating_sub(self.train_records.len());
+            let validation_capacity = max_validation.saturating_sub(self.validation_records.len());
+            let capacity = if validation {
+                validation_capacity
+            } else {
+                train_capacity
+            };
+            let records = match build_game_records(game, capacity) {
+                Ok(Some(records)) if !records.is_empty() => records,
+                Ok(_) => {
+                    self.stats.games_skipped += 1;
+                    continue;
+                }
+                Err(_) => {
+                    self.stats.games_skipped += 1;
+                    continue;
+                }
+            };
+
+            if validation {
+                self.validation_records.extend(records);
+            } else {
+                self.train_records.extend(records);
+            }
+            self.stats.games_used += 1;
+        }
+        Ok(())
+    }
+
+    fn write(
+        mut self,
+        train_path: impl AsRef<Path>,
+        validation_path: impl AsRef<Path>,
+    ) -> io::Result<PrepareStats> {
+        self.stats.train_records = self.train_records.len();
+        self.stats.validation_records = self.validation_records.len();
+        write_records(train_path, &self.train_records)?;
+        write_records(validation_path, &self.validation_records)?;
+        Ok(self.stats)
+    }
+}
+
 pub fn prepare(
-    mut input: impl Read,
+    input: impl Read,
     train_path: impl AsRef<Path>,
     validation_path: impl AsRef<Path>,
     max_train: usize,
     max_validation: usize,
 ) -> io::Result<PrepareStats> {
-    let mut reader = Reader::new(&mut input);
-    let mut visitor = GameVisitor;
-    let mut train_records = Vec::with_capacity(max_train.min(260_000));
-    let mut validation_records = Vec::with_capacity(max_validation.min(30_000));
-    let mut stats = PrepareStats::default();
-
-    while train_records.len() < max_train || validation_records.len() < max_validation {
-        let Some(game_result) = reader.read_game(&mut visitor)? else {
-            break;
-        };
-        stats.games_scanned += 1;
-        let game = match game_result {
-            Ok(game) => game,
-            Err(_) => {
-                stats.games_skipped += 1;
-                continue;
-            }
-        };
-        let validation = stats.games_scanned % VALIDATION_INTERVAL == 0;
-        let train_capacity = max_train.saturating_sub(train_records.len());
-        let validation_capacity = max_validation.saturating_sub(validation_records.len());
-
-        let capacity = if validation {
-            validation_capacity
-        } else {
-            train_capacity
-        };
-        let records = match build_game_records(game, capacity) {
-            Ok(Some(records)) if !records.is_empty() => records,
-            Ok(_) => {
-                stats.games_skipped += 1;
-                continue;
-            }
-            Err(_) => {
-                stats.games_skipped += 1;
-                continue;
-            }
-        };
-
-        if validation {
-            validation_records.extend(records);
-        } else {
-            train_records.extend(records);
-        }
-        stats.games_used += 1;
-    }
-
-    stats.train_records = train_records.len();
-    stats.validation_records = validation_records.len();
-    write_records(train_path, &train_records)?;
-    write_records(validation_path, &validation_records)?;
-    Ok(stats)
+    let mut buffer = DatasetBuffer::new(max_train, max_validation);
+    buffer.read(input, max_train, max_validation)?;
+    buffer.write(train_path, validation_path)
 }
 
 pub fn prepare_compressed(
@@ -170,10 +204,8 @@ pub fn prepare_compressed(
     max_train: usize,
     max_validation: usize,
 ) -> io::Result<PrepareStats> {
-    let file = File::open(input_path)?;
-    let decoder = zstd::stream::read::Decoder::new(file)?;
-    prepare(
-        decoder,
+    prepare_compressed_files(
+        std::slice::from_ref(&input_path),
         train_path,
         validation_path,
         max_train,
@@ -181,9 +213,39 @@ pub fn prepare_compressed(
     )
 }
 
+pub fn prepare_compressed_files<P: AsRef<Path>>(
+    input_paths: &[P],
+    train_path: impl AsRef<Path>,
+    validation_path: impl AsRef<Path>,
+    max_train: usize,
+    max_validation: usize,
+) -> io::Result<PrepareStats> {
+    if input_paths.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "at least one input is required",
+        ));
+    }
+    let mut buffer = DatasetBuffer::new(max_train, max_validation);
+    for (index, input_path) in input_paths.iter().enumerate() {
+        if buffer.is_full(max_train, max_validation) {
+            break;
+        }
+        let remaining_inputs = input_paths.len() - index;
+        let train_target = buffer.train_records.len()
+            + max_train.saturating_sub(buffer.train_records.len()) / remaining_inputs;
+        let validation_target = buffer.validation_records.len()
+            + max_validation.saturating_sub(buffer.validation_records.len()) / remaining_inputs;
+        let file = File::open(input_path)?;
+        let decoder = zstd::stream::read::Decoder::new(file)?;
+        buffer.read(decoder, train_target, validation_target)?;
+    }
+    buffer.write(train_path, validation_path)
+}
+
 #[derive(Clone, Debug)]
 pub struct PrepareOptions {
-    pub input: PathBuf,
+    pub inputs: Vec<PathBuf>,
     pub train: PathBuf,
     pub validation: PathBuf,
     pub max_train: usize,
@@ -192,7 +254,7 @@ pub struct PrepareOptions {
 
 impl PrepareOptions {
     pub fn parse(arguments: &[String]) -> Result<Self, String> {
-        let mut input = None;
+        let mut inputs = Vec::new();
         let mut train = PathBuf::from("data/train.bin");
         let mut validation = PathBuf::from("data/validation.bin");
         let mut max_train = 240_000;
@@ -201,11 +263,9 @@ impl PrepareOptions {
 
         while index < arguments.len() {
             match arguments[index].as_str() {
-                "--input" => {
-                    input = Some(PathBuf::from(argument_value::<String>(
-                        arguments, &mut index, "--input",
-                    )?))
-                }
+                "--input" => inputs.push(PathBuf::from(argument_value::<String>(
+                    arguments, &mut index, "--input",
+                )?)),
                 "--train" => {
                     train =
                         PathBuf::from(argument_value::<String>(arguments, &mut index, "--train")?)
@@ -226,12 +286,14 @@ impl PrepareOptions {
             index += 1;
         }
 
-        let input = input.ok_or_else(|| "--input is required".to_string())?;
+        if inputs.is_empty() {
+            return Err("--input is required".to_string());
+        }
         if max_train == 0 || max_validation == 0 {
             return Err("dataset limits must be positive".to_string());
         }
         Ok(Self {
-            input,
+            inputs,
             train,
             validation,
             max_train,
@@ -377,7 +439,7 @@ fn initial_halfmove_clock(fen: &str) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::prepare;
+    use super::{PrepareOptions, prepare, prepare_compressed_files};
     use std::io::Cursor;
 
     const SAMPLE_PGN: &str = r#"[Event "Rated Rapid game"]
@@ -435,5 +497,50 @@ mod tests {
         assert_eq!(stats.train_records, train.len());
         assert_eq!(stats.validation_records, validation.len());
         assert_eq!(train.len() + validation.len(), 12);
+    }
+
+    #[test]
+    fn parses_multiple_inputs() {
+        let arguments = ["--input", "one.zst", "--input", "two.zst"]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let options = PrepareOptions::parse(&arguments).unwrap();
+        assert_eq!(options.inputs.len(), 2);
+        assert_eq!(options.inputs[1].to_string_lossy(), "two.zst");
+    }
+
+    #[test]
+    fn shares_the_validation_split_across_files() {
+        let stem = format!("hi-prepare-multi-{}", std::process::id());
+        let first = std::env::temp_dir().join(format!("{stem}-first.zst"));
+        let second = std::env::temp_dir().join(format!("{stem}-second.zst"));
+        let repeated_games = SAMPLE_PGN.repeat(5);
+        for path in [&first, &second] {
+            let mut encoder = zstd::stream::write::Encoder::new(Vec::new(), 0).unwrap();
+            std::io::Write::write_all(&mut encoder, repeated_games.as_bytes()).unwrap();
+            let compressed = encoder.finish().unwrap();
+            std::fs::write(path, compressed).unwrap();
+        }
+        let train_path = std::env::temp_dir().join(format!("{stem}-train.bin"));
+        let validation_path = std::env::temp_dir().join(format!("{stem}-validation.bin"));
+        let stats = prepare_compressed_files(
+            &[first.clone(), second.clone()],
+            &train_path,
+            &validation_path,
+            54,
+            12,
+        )
+        .unwrap();
+        let train = crate::dataset::read_records(&train_path).unwrap();
+        let validation = crate::dataset::read_records(&validation_path).unwrap();
+        for path in [&first, &second, &train_path, &validation_path] {
+            std::fs::remove_file(path).unwrap();
+        }
+
+        assert_eq!(stats.train_records, 54);
+        assert_eq!(stats.validation_records, 12);
+        assert_eq!(train.len(), 54);
+        assert_eq!(validation.len(), 12);
     }
 }

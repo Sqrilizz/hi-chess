@@ -9,7 +9,7 @@ pub const ELO_MIN: u16 = 600;
 pub const ELO_MAX: u16 = 2_200;
 pub const HALFMOVE_SCALE: u16 = 100;
 
-const PLANE_SIDE_TO_MOVE: usize = 12;
+pub const PLANE_SIDE_TO_MOVE: usize = 12;
 const PLANE_OWN_KINGSIDE: usize = 13;
 const PLANE_OWN_QUEENSIDE: usize = 14;
 const PLANE_ENEMY_KINGSIDE: usize = 15;
@@ -110,8 +110,10 @@ pub fn encode_board(
     input
 }
 
-pub fn move_index(chess_move: ChessMove) -> usize {
-    chess_move.get_source().to_index() * BOARD_SQUARES + chess_move.get_dest().to_index()
+pub fn move_index(board: &Board, chess_move: ChessMove) -> usize {
+    let source = oriented_square_index(chess_move.get_source(), board.side_to_move());
+    let dest = oriented_square_index(chess_move.get_dest(), board.side_to_move());
+    source * BOARD_SQUARES + dest
 }
 
 pub fn policy_from_logits(
@@ -120,9 +122,33 @@ pub fn policy_from_logits(
     wdl: [f32; VALUE_CLASSES],
     temperature: f32,
 ) -> Policy {
+    policy_from_logits_with_index(board, logits, wdl, temperature, move_index)
+}
+
+pub fn legacy_policy_from_logits(
+    board: &Board,
+    logits: &[f32; POLICY_MOVES],
+    wdl: [f32; VALUE_CLASSES],
+    temperature: f32,
+) -> Policy {
+    policy_from_logits_with_index(board, logits, wdl, temperature, absolute_move_index)
+}
+
+fn policy_from_logits_with_index(
+    board: &Board,
+    logits: &[f32; POLICY_MOVES],
+    wdl: [f32; VALUE_CLASSES],
+    temperature: f32,
+    index_move: fn(&Board, ChessMove) -> usize,
+) -> Policy {
     let temperature = temperature.max(0.05);
     let legal_moves: Vec<(ChessMove, f32)> = chess::MoveGen::new_legal(board)
-        .map(|chess_move| (chess_move, logits[move_index(chess_move)] / temperature))
+        .map(|chess_move| {
+            (
+                chess_move,
+                logits[index_move(board, chess_move)] / temperature,
+            )
+        })
         .collect();
     if legal_moves.is_empty() {
         return Policy {
@@ -248,6 +274,10 @@ fn set_plane(input: &mut [u8; INPUT_BYTES], plane: usize, square: usize, value: 
     input[plane * BOARD_SQUARES + square] = value;
 }
 
+fn absolute_move_index(_board: &Board, chess_move: ChessMove) -> usize {
+    chess_move.get_source().to_index() * BOARD_SQUARES + chess_move.get_dest().to_index()
+}
+
 fn oriented_square_index(square: Square, perspective: Color) -> usize {
     let index = square.to_index();
     if perspective == Color::White {
@@ -274,8 +304,8 @@ fn softmax(values: [f32; VALUE_CLASSES], temperature: f32) -> [f32; VALUE_CLASSE
 #[cfg(test)]
 mod tests {
     use super::{
-        INPUT_BYTES, INPUT_CHANNELS, POLICY_MOVES, encode_board, move_index, policy_from_logits,
-        sample_policy, sample_policy_filtered, top_policy_moves,
+        INPUT_BYTES, INPUT_CHANNELS, POLICY_MOVES, encode_board, legacy_policy_from_logits,
+        move_index, policy_from_logits, sample_policy, sample_policy_filtered, top_policy_moves,
     };
     use chess::{Board, ChessMove, MoveGen, Piece, Square};
     use std::str::FromStr;
@@ -314,9 +344,35 @@ mod tests {
     }
 
     #[test]
-    fn move_index_is_side_to_move_independent() {
-        let chess_move = ChessMove::new(Square::E2, Square::E4, None);
-        assert_eq!(move_index(chess_move), 12 * 64 + 28);
+    fn move_index_matches_the_oriented_board() {
+        let white = Board::default();
+        let black = Board::from_str("4k3/4p3/8/8/8/8/4P3/4K3 b - - 0 1").unwrap();
+        let white_move = ChessMove::new(Square::E2, Square::E4, None);
+        let black_move = ChessMove::new(Square::E7, Square::E5, None);
+        assert_eq!(move_index(&white, white_move), 12 * 64 + 28);
+        assert_eq!(move_index(&black, black_move), 12 * 64 + 28);
+    }
+
+    #[test]
+    fn black_policy_uses_oriented_logits() {
+        let board = Board::from_str("4k3/4p3/8/8/8/8/4P3/4K3 b - - 0 1").unwrap();
+        let black_move = ChessMove::new(Square::E7, Square::E5, None);
+        let white_move = ChessMove::new(Square::E2, Square::E4, None);
+        let mut logits = [0.0; POLICY_MOVES];
+        logits[move_index(&board, black_move)] = 10.0;
+        logits[move_index(&board, white_move)] = -10.0;
+        let policy = policy_from_logits(&board, &logits, [0.0; 3], 1.0);
+        assert_eq!(top_policy_moves(&policy, 1)[0].chess_move, black_move);
+    }
+
+    #[test]
+    fn legacy_policy_keeps_absolute_black_coordinates() {
+        let board = Board::from_str("4k3/4p3/8/8/8/8/4P3/4K3 b - - 0 1").unwrap();
+        let black_move = ChessMove::new(Square::E7, Square::E5, None);
+        let mut logits = [0.0; POLICY_MOVES];
+        logits[52 * 64 + 36] = 10.0;
+        let policy = legacy_policy_from_logits(&board, &logits, [0.0; 3], 1.0);
+        assert_eq!(top_policy_moves(&policy, 1)[0].chess_move, black_move);
     }
 
     #[test]
@@ -332,8 +388,8 @@ mod tests {
     fn filtered_sampling_only_returns_allowed_moves() {
         let board = Board::default();
         let mut logits = [0.0; POLICY_MOVES];
-        logits[move_index(ChessMove::new(Square::E2, Square::E4, None))] = 10.0;
-        logits[move_index(ChessMove::new(Square::D2, Square::D4, None))] = 5.0;
+        logits[move_index(&board, ChessMove::new(Square::E2, Square::E4, None))] = 10.0;
+        logits[move_index(&board, ChessMove::new(Square::D2, Square::D4, None))] = 5.0;
         let policy = policy_from_logits(&board, &logits, [0.0; 3], 1.0);
         let sampled = sample_policy_filtered(
             &policy,
@@ -348,7 +404,7 @@ mod tests {
     fn top_moves_respects_requested_count() {
         let board = Board::default();
         let mut logits = [0.0; POLICY_MOVES];
-        logits[move_index(ChessMove::new(Square::E2, Square::E4, None))] = 10.0;
+        logits[move_index(&board, ChessMove::new(Square::E2, Square::E4, None))] = 10.0;
         let policy = policy_from_logits(&board, &logits, [0.0; 3], 1.0);
         let top = top_policy_moves(&policy, 3);
         assert_eq!(top.len(), 3);
@@ -371,8 +427,9 @@ mod tests {
 
     #[test]
     fn promotion_variants_share_policy_index() {
+        let board = Board::from_str("7k/P7/8/8/8/8/7p/7K w - - 0 1").unwrap();
         let queen = ChessMove::new(Square::A7, Square::A8, Some(Piece::Queen));
         let knight = ChessMove::new(Square::A7, Square::A8, Some(Piece::Knight));
-        assert_eq!(move_index(queen), move_index(knight));
+        assert_eq!(move_index(&board, queen), move_index(&board, knight));
     }
 }

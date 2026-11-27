@@ -1,7 +1,7 @@
 use crate::{
     dataset::{TrainingRecord, read_records},
-    features::{INPUT_CHANNELS, POLICY_MOVES, VALUE_CLASSES},
-    network::{ChessNet, training_device},
+    features::{BOARD_SQUARES, INPUT_CHANNELS, PLANE_SIDE_TO_MOVE, POLICY_MOVES, VALUE_CLASSES},
+    network::{ChessModel, ChessNetV3, training_device},
 };
 use burn::{
     nn::loss::CrossEntropyLossConfig,
@@ -51,6 +51,10 @@ struct Metrics {
     top1: f32,
     top3: f32,
     value_accuracy: f32,
+    white_top1: f32,
+    black_top1: f32,
+    white_samples: usize,
+    black_samples: usize,
     samples: usize,
 }
 
@@ -59,7 +63,7 @@ impl TrainOptions {
         let mut options = Self {
             train: PathBuf::from("data/train.bin"),
             validation: PathBuf::from("data/validation.bin"),
-            output: PathBuf::from("models/hi-v2.bpk"),
+            output: PathBuf::from("models/hi-v3.bpk"),
             epochs: 10,
             batch_size: 128,
             learning_rate: 1e-3,
@@ -141,15 +145,31 @@ pub fn train(options: &TrainOptions) -> Result<TrainStats, String> {
             .gradient_checkpointing(),
     };
     println!("device: {device:?}");
+    println!("architecture: V3");
     println!(
         "train records: {}, validation records: {}",
         train_records.len(),
         validation_records.len()
     );
 
-    let mut model = ChessNet::new(&device).train();
+    train_model(
+        ChessNetV3::new(&device).train(),
+        options,
+        &train_records,
+        &validation_records,
+        &device,
+    )
+}
+
+fn train_model<M: ChessModel>(
+    mut model: M,
+    options: &TrainOptions,
+    train_records: &[TrainingRecord],
+    validation_records: &[TrainingRecord],
+    device: &Device,
+) -> Result<TrainStats, String> {
     let mut optimizer = AdamConfig::new().init();
-    let loss_function = CrossEntropyLossConfig::new().init(&device);
+    let loss_function = CrossEntropyLossConfig::new().init(device);
     let mut random = StdRng::seed_from_u64(options.seed);
     let mut indices: Vec<usize> = (0..train_records.len()).collect();
     let mut stats = TrainStats::default();
@@ -173,7 +193,7 @@ pub fn train(options: &TrainOptions) -> Result<TrainStats, String> {
                 model,
                 &mut optimizer,
                 &loss_function,
-                &device,
+                device,
                 &batch,
                 learning_rate,
             )?;
@@ -198,15 +218,17 @@ pub fn train(options: &TrainOptions) -> Result<TrainStats, String> {
             }
         }
 
-        let validation = evaluate(&model, &validation_records, &device, options.batch_size)?;
+        let validation = evaluate(&model, validation_records, device, options.batch_size)?;
         stats.final_loss = epoch_loss / epoch_samples as f32;
         println!(
-            "epoch {epoch}: train_loss {:.4}, val_loss {:.4}, val_top1 {:.2}%, val_top3 {:.2}%, val_wdl {:.2}%",
+            "epoch {epoch}: train_loss {:.4}, val_loss {:.4}, val_top1 {:.2}%, val_top3 {:.2}%, val_wdl {:.2}%, val_white_top1 {:.2}%, val_black_top1 {:.2}%",
             stats.final_loss,
             validation.loss,
             validation.top1 * 100.0,
             validation.top3 * 100.0,
-            validation.value_accuracy * 100.0
+            validation.value_accuracy * 100.0,
+            validation.white_top1 * 100.0,
+            validation.black_top1 * 100.0
         );
 
         if validation.top1 > best_validation_top1 {
@@ -230,14 +252,14 @@ pub fn train(options: &TrainOptions) -> Result<TrainStats, String> {
     Ok(stats)
 }
 
-fn train_batch(
-    model: ChessNet,
+fn train_batch<M: ChessModel>(
+    model: M,
     optimizer: &mut ModuleOptimizer,
     loss_function: &burn::nn::loss::CrossEntropyLoss,
     device: &Device,
     records: &[&TrainingRecord],
     learning_rate: f64,
-) -> Result<(ChessNet, f32, usize), String> {
+) -> Result<(M, f32, usize), String> {
     let batch_size = records.len();
     let input_values: Vec<f32> = records
         .iter()
@@ -273,7 +295,7 @@ fn train_batch(
         Tensor::<1, Int>::from_data(TensorData::new(policy_targets, [batch_size]), device);
     let value_targets =
         Tensor::<1, Int>::from_data(TensorData::new(value_targets, [batch_size]), device);
-    let (policy_logits, value_logits) = model.forward(input);
+    let (policy_logits, value_logits) = model.forward_logits(input);
     let masked_logits = policy_logits.mask_fill(legal.not(), f32::NEG_INFINITY);
     let policy_loss = loss_function.forward(masked_logits, policy_targets);
     let value_loss = loss_function.forward(value_logits, value_targets);
@@ -291,8 +313,8 @@ fn train_batch(
     Ok((updated, loss_value, batch_size))
 }
 
-fn evaluate(
-    model: &ChessNet,
+fn evaluate<M: ChessModel>(
+    model: &M,
     records: &[TrainingRecord],
     device: &Device,
     batch_size: usize,
@@ -340,7 +362,7 @@ fn evaluate(
             TensorData::new(value_targets.clone(), [batch_len]),
             device,
         );
-        let (policy_logits, value_logits) = model.forward(input);
+        let (policy_logits, value_logits) = model.forward_logits(input);
         let masked_logits = policy_logits.mask_fill(legal.not(), f32::NEG_INFINITY);
         let policy_loss = loss_function.forward(masked_logits.clone(), policy_target_tensor);
         let value_loss = loss_function.forward(value_logits.clone(), value_target_tensor);
@@ -362,6 +384,12 @@ fn evaluate(
             .map_err(|error| error.to_string())?;
 
         for row in 0..batch_len {
+            let white_to_move = batch[row].input[PLANE_SIDE_TO_MOVE * BOARD_SQUARES] != 0;
+            if white_to_move {
+                metrics.white_samples += 1;
+            } else {
+                metrics.black_samples += 1;
+            }
             let start = row * POLICY_MOVES;
             let end = start + POLICY_MOVES;
             let target = policy_targets[row] as usize;
@@ -372,6 +400,11 @@ fn evaluate(
                 .count();
             if better == 0 {
                 metrics.top1 += 1.0;
+                if white_to_move {
+                    metrics.white_top1 += 1.0;
+                } else {
+                    metrics.black_top1 += 1.0;
+                }
             }
             if better < 3 {
                 metrics.top3 += 1.0;
@@ -398,10 +431,16 @@ fn evaluate(
     metrics.top1 /= samples;
     metrics.top3 /= samples;
     metrics.value_accuracy /= samples;
+    if metrics.white_samples > 0 {
+        metrics.white_top1 /= metrics.white_samples as f32;
+    }
+    if metrics.black_samples > 0 {
+        metrics.black_top1 /= metrics.black_samples as f32;
+    }
     Ok(metrics)
 }
 
-fn save_model(model: &ChessNet, path: &std::path::Path) -> Result<(), String> {
+fn save_model<M: ChessModel>(model: &M, path: &std::path::Path) -> Result<(), String> {
     if let Some(parent) = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -453,6 +492,12 @@ mod tests {
         assert_eq!(options.epochs, 3);
         assert_eq!(options.batch_size, 64);
         assert_eq!(options.device, DeviceSelection::Discrete);
+    }
+
+    #[test]
+    fn defaults_to_v3() {
+        let options = TrainOptions::parse(&[]).unwrap();
+        assert_eq!(options.output, PathBuf::from("models/hi-v3.bpk"));
     }
 
     #[test]

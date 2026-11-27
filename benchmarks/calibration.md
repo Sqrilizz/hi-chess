@@ -212,9 +212,67 @@ Twenty games per level at 5+0.05:
 
 The rough Elo estimates are monotonic across all five levels. Level 5 won nine games against Stockfish limited to 2100.
 
+## `hi-v3` model and policy-orientation fix
+
+HI 0.10.0 trains policy targets and legal-move masks in the same side-to-move orientation as the input planes. Previously the input was vertically mirrored for Black while policy indices remained absolute, so identical oriented positions could require opposite output coordinates. Dataset format v2 stores oriented indices; format v1 is migrated on read. Existing v2 weights retain their original absolute-coordinate inference path.
+
+The v3 CNN uses 64 channels, 8 residual blocks and a 64-to-4-channel policy bottleneck. It was trained on 2,400,000 positions from 115,988 rated games played between July and October 2026, with 240,000 held-out validation positions.
+
+| Epoch | Validation loss | Top-1 | Top-3 | WDL | White top-1 | Black top-1 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 2.2012 | 40.26% | 67.23% | 54.71% | 39.96% | 40.55% |
+| 2 | 2.1189 | 42.13% | 69.52% | 55.08% | 41.90% | 42.36% |
+| 3 | 2.0768 | 42.97% | 70.55% | 55.20% | 42.67% | 43.27% |
+| 4 | 2.0558 | 43.71% | 71.33% | 55.29% | 43.39% | 44.04% |
+
+The v2 and v3 validation metrics use different datasets, so they are not a controlled accuracy comparison. Match results below provide the playing-strength comparison. The v3 model SHA256 is `5dda0c2073dc7659318fa807474f51f2cb8f984131aad83b2b67de6cd61673a5`.
+
+## HI 0.10.0 calibration
+
+Twenty games per level at 5+0.05 against the same strength-limited Stockfish targets used for HI 0.9.0. These initial v3 matches used the original 32-candidate, weight-5 Level 5 profile; the extended final-profile result is below:
+
+| Level | Opponent | HI 0.9.0 W-D-L | HI 0.10.0 W-D-L | HI 0.9.0 score | HI 0.10.0 score | HI 0.10.0 rough Elo |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 800 | 1-1-18 | 1-4-15 | 7.5% | 15.0% | 652.7 |
+| 2 | 1100 | 2-1-17 | 7-0-13 | 12.5% | 35.0% | 1009.4 |
+| 3 | 1400 | 8-3-9 | 13-6-1 | 47.5% | 80.0% | 1531.6 |
+| 4 | 1700 | 6-0-14 | 9-3-8 | 30.0% | 52.5% | 1731.0 |
+| 5 | 2100 | 9-0-11 | 9-1-10 | 45.0% | 47.5% | 2093.2 |
+
+All five rough Elo estimates increased and remained monotonic. The largest gains were on Levels 1–4.
+
+A direct Level 5 duel between v3 as HI and v2 as the opponent used 40 games at 5+0.05 with alternating colors and paired openings. V3 scored 15-11-14, 51.2%, roughly +10 Elo. This is not statistically decisive at 40 games.
+
+Color splits in the 20-game Stockfish calibration:
+
+| Level | White W-D-L | Black W-D-L |
+|---:|---:|---:|
+| 1 | 0-2-8 | 1-2-7 |
+| 2 | 5-0-5 | 2-0-8 |
+| 3 | 9-1-0 | 4-5-1 |
+| 4 | 6-2-2 | 3-1-6 |
+| 5 | 5-1-4 | 4-0-6 |
+
+V3 wins with both colors at every level except Level 1, where its only win came with Black. The earlier White-only win pattern is no longer present.
+
+## Level 5 extended calibration
+
+One hundred games per model at 5+0.05 against Stockfish limited to 2100:
+
+| Model | W-D-L | Score | Rough HI Elo | White W-D-L | Black W-D-L |
+|---|---:|---:|---:|---:|---:|
+| v2, 32 candidates / weight 5 | 36-7-57 | 39.5% | 2037.5 | 26-2-22 | 10-5-35 |
+| v3, 32 candidates / weight 5 | 40-9-51 | 44.5% | 2061.8 | 30-5-15 | 10-4-36 |
+| v3, 64 candidates / weight 2 | 46-5-49 | 48.5% | 2073.9 | 29-4-17 | 17-1-32 |
+
+Widening the Level 5 candidate set from 32 to 64 and reducing the policy weight from 5 to 2 improved the v3 result by four percentage points over its initial profile and by nine points over v2. This is the final HI 0.10.0 Level 5 configuration. The Black-side deficit appears with both models against this particular strength-limited Stockfish matchup and is not introduced by the v3 orientation fix; the final profile reduced it substantially.
+
+A 100-game direct duel between the initial v3 Level 5 profile and v2 scored 32-34-34, 49.0% for v3. Both engines shared the same GPU, so the larger v3 model competes for inference time with v2; the separate Stockfish matches are the cleaner playing-strength comparison.
+
 ## Next work
 
+- run larger v3 matches with more opening positions;
+- tune Level 3 candidate count and policy weight toward its advertised target;
+- improve safety search for Levels 1–2;
 - tune transposition-table size and replacement policy;
-- investigate the White-only win pattern;
-- tune level candidate counts and policy weights;
-- run larger matches with more opening positions.
+- package the engine and model for the desktop coach application.

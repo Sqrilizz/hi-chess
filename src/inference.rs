@@ -1,20 +1,28 @@
 use crate::{
-    features::{Policy, encode_board, policy_from_logits},
-    network::{ChessNet, inference_device},
+    features::{Policy, encode_board, legacy_policy_from_logits, policy_from_logits},
+    network::{ChessNet, ChessNetV3, inference_device, predict_model},
 };
 use burn::tensor::Device;
 use chess::{Board, ChessMove};
 use std::path::Path;
 
+enum LoadedModel {
+    V2(Box<ChessNet>),
+    V3(Box<ChessNetV3>),
+}
+
 pub struct ModelRunner {
     device: Device,
-    model: ChessNet,
+    model: LoadedModel,
 }
 
 impl ModelRunner {
     pub fn new(path: impl AsRef<Path>, discrete_gpu: bool) -> Result<Self, String> {
         let device = inference_device(discrete_gpu);
-        let model = ChessNet::load(path, &device)?;
+        let model = match ChessNetV3::load(&path, &device) {
+            Ok(model) => LoadedModel::V3(Box::new(model)),
+            Err(_) => LoadedModel::V2(Box::new(ChessNet::load(&path, &device)?)),
+        };
         Ok(Self { device, model })
     }
 
@@ -28,13 +36,28 @@ impl ModelRunner {
         temperature: f32,
     ) -> Result<Policy, String> {
         let input = encode_board(board, own_elo, opponent_elo, halfmove_clock, last_move);
-        let (policy_logits, wdl_logits) = self.model.predict(&self.device, &input)?;
-        Ok(policy_from_logits(
-            board,
-            &policy_logits,
-            wdl_logits,
-            temperature,
-        ))
+        match &self.model {
+            LoadedModel::V2(model) => {
+                let (policy_logits, wdl_logits) =
+                    predict_model(model.as_ref(), &self.device, &input)?;
+                Ok(legacy_policy_from_logits(
+                    board,
+                    &policy_logits,
+                    wdl_logits,
+                    temperature,
+                ))
+            }
+            LoadedModel::V3(model) => {
+                let (policy_logits, wdl_logits) =
+                    predict_model(model.as_ref(), &self.device, &input)?;
+                Ok(policy_from_logits(
+                    board,
+                    &policy_logits,
+                    wdl_logits,
+                    temperature,
+                ))
+            }
+        }
     }
 }
 

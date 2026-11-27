@@ -89,8 +89,8 @@ mod tests {
     fn policy() -> crate::features::Policy {
         let board = Board::default();
         let mut logits = [0.0; POLICY_MOVES];
-        logits[move_index(ChessMove::new(Square::E2, Square::E4, None))] = 8.0;
-        logits[move_index(ChessMove::new(Square::D2, Square::D4, None))] = 6.0;
+        logits[move_index(&board, ChessMove::new(Square::E2, Square::E4, None))] = 8.0;
+        logits[move_index(&board, ChessMove::new(Square::D2, Square::D4, None))] = 6.0;
         policy_from_logits(&board, &logits, [0.0; 3], 1.0)
     }
 

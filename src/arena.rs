@@ -16,7 +16,7 @@ use std::{
 const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const DEFAULT_OPENINGS: &str = "assets/openings.fen";
 const DEFAULT_OUTPUT: &str = "matches/match.tsv";
-const DEFAULT_MODEL: &str = "models/hi-v2.bpk";
+const DEFAULT_MODEL: &str = "models/hi-v3.bpk";
 const DEFAULT_GAMES: usize = 20;
 const DEFAULT_LEVEL: u8 = 3;
 const DEFAULT_ELO: u16 = 1_500;
