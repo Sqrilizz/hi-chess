@@ -23,7 +23,7 @@ Implemented:
 - quiescence search;
 - move ordering, killer moves and history heuristic;
 - transposition table with exact/lower/upper bounds;
-- principal variation search for internal alpha-beta nodes;
+- principal variation search for root and internal alpha-beta nodes;
 - depth, node, time and clock limits;
 - early `stop`;
 - checkmate, stalemate, repetition, fifty-move rule and basic insufficient-material detection;

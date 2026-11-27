@@ -82,6 +82,17 @@ HI 0.4.1 added PVS to internal alpha-beta nodes. Fixed-depth results:
 
 Scores and best moves were unchanged on all three positions.
 
+HI 0.4.2 extended PVS to the root for pure-search mode while keeping exact candidate scores for hybrid levels:
+
+| Position | 0.4.1 nodes | 0.4.2 nodes | 0.4.1 time | 0.4.2 time |
+|---|---:|---:|---:|---:|
+| startpos | 1,692,880 | 1,520,228 | 426 ms | 389 ms |
+| kiwipete | 2,300,602 | 2,299,861 | 505 ms | 509 ms |
+| endgame | 156,369 | 144,970 | 24 ms | 23 ms |
+| total | 4,149,851 | 3,965,059 | 956 ms | 923 ms |
+
+Scores and best moves were unchanged.
+
 ## Rejected null-move experiment
 
 A guarded null-move prototype reduced the three-position depth-7 total from 4,149,851 to 2,259,254 nodes, but changed scores and best moves on two positions. Match results were mixed:

@@ -264,7 +264,8 @@ impl Search {
         let mut alpha = -INFINITE_SCORE;
         let mut move_scores = Vec::with_capacity(moves.len());
 
-        for chess_move in moves {
+        let exact_candidates = config.policy.is_some() && config.level_profile.policy_weight > 0;
+        for (move_index, chess_move) in moves.into_iter().enumerate() {
             if self.should_stop() {
                 break;
             }
@@ -272,18 +273,39 @@ impl Search {
             let next_board = board.make_move_new(chess_move);
             let next_halfmove = halfmove_clock_after(board, halfmove_clock, chess_move);
             path.push(board.get_hash());
-            let score = -self.negamax(
+            let (child_alpha, child_beta) = if move_index == 0 || exact_candidates {
+                (-INFINITE_SCORE, -alpha)
+            } else {
+                (-alpha - 1, -alpha)
+            };
+            let mut score = -self.negamax(
                 next_board,
                 depth - 1,
-                -INFINITE_SCORE,
-                -alpha,
+                child_alpha,
+                child_beta,
                 NodeState {
                     ply: 1,
                     halfmove_clock: next_halfmove,
                 },
                 path,
             );
+            if move_index > 0 && !exact_candidates && !self.stopped && score > alpha {
+                score = -self.negamax(
+                    next_board,
+                    depth - 1,
+                    -INFINITE_SCORE,
+                    -alpha,
+                    NodeState {
+                        ply: 1,
+                        halfmove_clock: next_halfmove,
+                    },
+                    path,
+                );
+            }
             path.pop();
+            if self.stopped {
+                break;
+            }
 
             move_scores.push(ScoredMove { chess_move, score });
             alpha = alpha.max(score);
