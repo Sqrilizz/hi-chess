@@ -81,7 +81,7 @@ setoption name OpponentElo value 1500
 | 1 | ~800 | Samples from the human-move policy with a depth-2 safety filter |
 | 2 | ~1100 | Policy sampling with a depth-2 safety filter |
 | 3 | ~1400 | Searches the 8 most likely model candidates |
-| 4 | ~1700 | Searches 16 candidates with a policy-weight bonus |
+| 4 | ~1700 | Searches 8 candidates more deeply with a policy-weight bonus |
 | 5 | ~2100 | Full search |
 
 These are target profiles, not guaranteed Elo ratings. If the model is unavailable, HI reports the problem and falls back to Level 5 search.

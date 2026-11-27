@@ -44,9 +44,9 @@ pub fn profile(level: u8) -> LevelProfile {
         4 => LevelProfile {
             own_elo: 1_700,
             temperature: 0.7,
-            candidate_count: 16,
-            max_depth: 8,
-            policy_weight: 10,
+            candidate_count: 8,
+            max_depth: 6,
+            policy_weight: 20,
             sample_policy: false,
             max_score_drop: 0,
         },

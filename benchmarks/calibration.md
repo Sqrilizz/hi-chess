@@ -126,6 +126,12 @@ HI 0.5.0 added shallow safety search to Levels 1 and 2. The model still samples 
 
 The safety filter is deliberately wider for Level 1 so it remains more error-prone than Level 2.
 
+## Level 4 profile tuning
+
+Level 4 was changed from 16 candidates at depth 8 with policy weight 10 to 8 candidates at depth 6 with policy weight 20. Against Stockfish 1700 the result remained 1-0-19, 5.0%, rough HI Elo 1499.6.
+
+The profile was kept because it spends search time more deliberately, but the match does not prove a strength change. The rough Elo ordering remains monotonic: Level 3 ~1280, Level 4 ~1500, Level 5 ~1900.
+
 ## Next work
 
 - tune transposition-table size and replacement policy;
