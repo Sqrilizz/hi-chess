@@ -48,6 +48,8 @@ cargo build --release
 
 The executable is written to `target/release/hi`.
 
+A stripped Linux x86-64 binary and the `hi-v3.bpk` model are also available in the [HI 0.10.0 release](https://github.com/Sqrilizz/hi-chess/releases/tag/v0.10.0). Extract the model into `models/hi-v3.bpk` next to the executable before running with neural levels.
+
 ## Run as a UCI engine
 
 ```bash
