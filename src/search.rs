@@ -345,7 +345,7 @@ impl Search {
         let mut best_move = None;
         let mut completed = true;
 
-        for chess_move in moves {
+        for (move_index, chess_move) in moves.into_iter().enumerate() {
             if self.should_stop() {
                 completed = false;
                 break;
@@ -354,18 +354,40 @@ impl Search {
             let next_board = board.make_move_new(chess_move);
             let next_halfmove = halfmove_clock_after(&board, halfmove_clock, chess_move);
             path.push(board.get_hash());
-            let score = -self.negamax(
+            let (child_alpha, child_beta) = if move_index == 0 {
+                (-beta, -alpha)
+            } else {
+                (-alpha - 1, -alpha)
+            };
+            let mut score = -self.negamax(
                 next_board,
                 depth - 1,
-                -beta,
-                -alpha,
+                child_alpha,
+                child_beta,
                 NodeState {
                     ply: ply + 1,
                     halfmove_clock: next_halfmove,
                 },
                 path,
             );
+            if move_index > 0 && score > alpha && score < beta {
+                score = -self.negamax(
+                    next_board,
+                    depth - 1,
+                    -beta,
+                    -alpha,
+                    NodeState {
+                        ply: ply + 1,
+                        halfmove_clock: next_halfmove,
+                    },
+                    path,
+                );
+            }
             path.pop();
+            if self.stopped {
+                completed = false;
+                break;
+            }
 
             if score > best_score {
                 best_score = score;

@@ -69,6 +69,19 @@ Match impact at 5+0.05 over 20 games:
 
 The table is a clear efficiency improvement, but this small match sample does not show a strength gain.
 
+## Principal variation search
+
+HI 0.4.1 added PVS to internal alpha-beta nodes. Fixed-depth results:
+
+| Position | 0.4.0 nodes | 0.4.1 nodes | 0.4.0 time | 0.4.1 time |
+|---|---:|---:|---:|---:|
+| startpos | 2,129,432 | 1,692,880 | 503 ms | 426 ms |
+| kiwipete | 2,301,550 | 2,300,602 | 512 ms | 505 ms |
+| endgame | 161,718 | 156,369 | 25 ms | 24 ms |
+| total | 4,592,700 | 4,149,851 | 1041 ms | 956 ms |
+
+Scores and best moves were unchanged on all three positions.
+
 ## Next work
 
 - tune transposition-table size and replacement policy;

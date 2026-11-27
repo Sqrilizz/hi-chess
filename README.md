@@ -23,6 +23,7 @@ Implemented:
 - quiescence search;
 - move ordering, killer moves and history heuristic;
 - transposition table with exact/lower/upper bounds;
+- principal variation search for internal alpha-beta nodes;
 - depth, node, time and clock limits;
 - early `stop`;
 - checkmate, stalemate, repetition, fifty-move rule and basic insufficient-material detection;
@@ -237,7 +238,7 @@ cargo fmt --all -- --check
 ## Project structure
 
 - `src/uci.rs` — UCI protocol and search management;
-- `src/search.rs` — alpha-beta, quiescence and search limits;
+- `src/search.rs` — alpha-beta, PVS, quiescence and search limits;
 - `src/transposition.rs` — transposition table;
 - `src/evaluation.rs` — material and positional evaluation;
 - `src/move_order.rs` — move ordering;
