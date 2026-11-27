@@ -1,7 +1,7 @@
 use crate::{
     evaluation::piece_value,
     personality::{Moment, line},
-    search::{MATE_THRESHOLD, Search, SearchLimits, halfmove_clock_after},
+    search::{MATE_THRESHOLD, Search, SearchLimits, halfmove_clock_after, insufficient_material},
 };
 use chess::{Board, BoardStatus, ChessMove, Color, Piece};
 use serde::Serialize;
@@ -190,7 +190,7 @@ pub fn review_game(
         hashes.push(board.get_hash());
     }
 
-    let result = game_result(&board, halfmove_clock);
+    let result = game_result(&board, halfmove_clock, &hashes);
     let closing_line = result.as_deref().map(|result| closing_line(result, player));
     Ok(GameReview {
         version: 1,
@@ -266,9 +266,9 @@ fn classify_move(
         MoveLabel::Great
     } else if centipawn_loss <= 30 {
         MoveLabel::Good
-    } else if centipawn_loss <= 80 {
+    } else if centipawn_loss <= 100 {
         MoveLabel::Inaccuracy
-    } else if centipawn_loss <= 180 {
+    } else if centipawn_loss <= 200 {
         MoveLabel::Mistake
     } else {
         MoveLabel::Blunder
@@ -309,7 +309,7 @@ fn white_score(score: i32, side: Color) -> i32 {
     if side == Color::White { score } else { -score }
 }
 
-fn game_result(board: &Board, halfmove_clock: u16) -> Option<String> {
+fn game_result(board: &Board, halfmove_clock: u16, hashes: &[u64]) -> Option<String> {
     match board.status() {
         BoardStatus::Checkmate => Some(if board.side_to_move() == Color::White {
             "0-1".to_string()
@@ -317,7 +317,17 @@ fn game_result(board: &Board, halfmove_clock: u16) -> Option<String> {
             "1-0".to_string()
         }),
         BoardStatus::Stalemate => Some("1/2-1/2".to_string()),
-        BoardStatus::Ongoing if halfmove_clock >= 100 => Some("1/2-1/2".to_string()),
+        BoardStatus::Ongoing
+            if halfmove_clock >= 100
+                || insufficient_material(board)
+                || hashes
+                    .iter()
+                    .filter(|hash| **hash == board.get_hash())
+                    .count()
+                    >= 3 =>
+        {
+            Some("1/2-1/2".to_string())
+        }
         BoardStatus::Ongoing => None,
     }
 }
@@ -429,6 +439,28 @@ mod tests {
         assert_eq!(review.moves[0].label, MoveLabel::Best);
         assert_eq!(review.moves[0].best_move, "g6g7");
         assert_eq!(review.result.as_deref(), Some("1-0"));
+    }
+
+    #[test]
+    fn detects_threefold_repetition() {
+        let moves = [
+            ChessMove::new(Square::G1, Square::F3, None),
+            ChessMove::new(Square::G8, Square::F6, None),
+            ChessMove::new(Square::F3, Square::G1, None),
+            ChessMove::new(Square::F6, Square::G8, None),
+            ChessMove::new(Square::G1, Square::F3, None),
+            ChessMove::new(Square::G8, Square::F6, None),
+            ChessMove::new(Square::F3, Square::G1, None),
+            ChessMove::new(Square::F6, Square::G8, None),
+        ];
+        let review = review_game(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            &moves,
+            1,
+            Color::White,
+        )
+        .unwrap();
+        assert_eq!(review.result.as_deref(), Some("1/2-1/2"));
     }
 
     #[test]
