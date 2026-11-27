@@ -9,6 +9,7 @@ pub struct LevelProfile {
     pub max_depth: usize,
     pub policy_weight: i32,
     pub sample_policy: bool,
+    pub max_score_drop: i32,
 }
 
 pub fn profile(level: u8) -> LevelProfile {
@@ -16,18 +17,20 @@ pub fn profile(level: u8) -> LevelProfile {
         1 => LevelProfile {
             own_elo: 800,
             temperature: 1.4,
-            candidate_count: 0,
-            max_depth: 0,
+            candidate_count: 6,
+            max_depth: 2,
             policy_weight: 0,
             sample_policy: true,
+            max_score_drop: 300,
         },
         2 => LevelProfile {
             own_elo: 1_100,
             temperature: 1.1,
-            candidate_count: 0,
-            max_depth: 0,
+            candidate_count: 8,
+            max_depth: 2,
             policy_weight: 0,
             sample_policy: true,
+            max_score_drop: 200,
         },
         3 => LevelProfile {
             own_elo: 1_400,
@@ -36,6 +39,7 @@ pub fn profile(level: u8) -> LevelProfile {
             max_depth: 4,
             policy_weight: 25,
             sample_policy: false,
+            max_score_drop: 0,
         },
         4 => LevelProfile {
             own_elo: 1_700,
@@ -44,6 +48,7 @@ pub fn profile(level: u8) -> LevelProfile {
             max_depth: 8,
             policy_weight: 10,
             sample_policy: false,
+            max_score_drop: 0,
         },
         _ => LevelProfile {
             own_elo: 2_100,
@@ -52,6 +57,7 @@ pub fn profile(level: u8) -> LevelProfile {
             max_depth: 128,
             policy_weight: 0,
             sample_policy: false,
+            max_score_drop: 0,
         },
     }
 }
@@ -75,6 +81,10 @@ mod tests {
     fn low_levels_sample_and_high_levels_search() {
         assert!(profile(1).sample_policy);
         assert!(profile(2).sample_policy);
+        assert_eq!(profile(1).max_depth, 2);
+        assert_eq!(profile(2).max_depth, 2);
+        assert!(profile(1).max_score_drop > 0);
+        assert!(profile(2).max_score_drop > 0);
         assert!(!profile(3).sample_policy);
         assert!(!profile(MAX_LEVEL).sample_policy);
         assert!(profile(3).max_depth < profile(4).max_depth);

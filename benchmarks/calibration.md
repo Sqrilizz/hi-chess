@@ -115,6 +115,17 @@ A bounded check-extension prototype increased the three-position depth-7 total f
 
 The prototype was rejected and is not part of HI 0.4.2.
 
+## Low-level safety search
+
+HI 0.5.0 added shallow safety search to Levels 1 and 2. The model still samples human-like moves, but only among candidates that pass a bounded search filter.
+
+| Level | Opponent | Before | With safety search |
+|---:|---:|---:|---:|
+| 1 | Stockfish 800 | 0-0-20, 0.0% | 2-0-18, 10.0% |
+| 2 | Stockfish 1100 | 0-0-20, 0.0% | 2-1-17, 12.5% |
+
+The safety filter is deliberately wider for Level 1 so it remains more error-prone than Level 2.
+
 ## Next work
 
 - tune transposition-table size and replacement policy;

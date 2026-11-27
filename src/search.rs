@@ -1,6 +1,6 @@
 use crate::{
     evaluation::evaluate,
-    features::sample_policy,
+    features::{sample_policy, sample_policy_filtered},
     hybrid::{HybridConfig, ScoredMove, filter_candidates, select_move},
     level::profile,
     move_order::{is_capture, is_tactical, order_moves},
@@ -151,27 +151,81 @@ impl Search {
 
         if level_profile.sample_policy
             && let Some(policy) = policy
-            && let Some(best_move) = sample_policy(policy, config.random_value)
         {
-            let score = evaluate(&board);
-            let elapsed = self.elapsed();
-            on_info(SearchInfo {
-                depth: 0,
-                selective_depth: 0,
-                score,
-                nodes: 0,
-                elapsed,
-                best_move,
-            });
-            return SearchResult {
-                best_move: Some(best_move),
-                score,
-                depth: 0,
-                selective_depth: 0,
-                nodes: 0,
-                elapsed,
-                root_moves: Vec::new(),
-            };
+            let mut best_move = sample_policy(policy, config.random_value);
+            let mut score = evaluate(&board);
+            let mut depth = 0;
+            let mut root_moves = Vec::new();
+
+            if level_profile.max_depth > 0 {
+                let requested_depth = self
+                    .limits
+                    .depth
+                    .map(usize::from)
+                    .unwrap_or(MAX_PLY)
+                    .clamp(1, MAX_PLY);
+                let safety_depth = requested_depth.min(level_profile.max_depth);
+                let mut safety_path = prior_hashes.to_vec();
+                self.stopped = false;
+                let root = self.search_root(
+                    &board,
+                    safety_depth,
+                    halfmove_clock,
+                    &mut safety_path,
+                    None,
+                    HybridConfig {
+                        policy: Some(policy),
+                        level_profile,
+                        random_value: config.random_value,
+                    },
+                );
+                if root.completed
+                    && let Some(best_score) =
+                        root.move_scores.iter().map(|scored| scored.score).max()
+                {
+                    let minimum_score = best_score.saturating_sub(level_profile.max_score_drop);
+                    let allowed_moves: Vec<ChessMove> = root
+                        .move_scores
+                        .iter()
+                        .filter(|scored| scored.score >= minimum_score)
+                        .map(|scored| scored.chess_move)
+                        .collect();
+                    if let Some(sampled) =
+                        sample_policy_filtered(policy, &allowed_moves, config.random_value)
+                    {
+                        best_move = Some(sampled);
+                        score = root
+                            .move_scores
+                            .iter()
+                            .find(|scored| scored.chess_move == sampled)
+                            .map(|scored| scored.score)
+                            .unwrap_or(score);
+                        depth = safety_depth;
+                        root_moves = root.move_scores.clone();
+                    }
+                }
+            }
+
+            if let Some(best_move) = best_move {
+                let elapsed = self.elapsed();
+                on_info(SearchInfo {
+                    depth,
+                    selective_depth: self.selective_depth,
+                    score,
+                    nodes: self.nodes,
+                    elapsed,
+                    best_move,
+                });
+                return SearchResult {
+                    best_move: Some(best_move),
+                    score,
+                    depth,
+                    selective_depth: self.selective_depth,
+                    nodes: self.nodes,
+                    elapsed,
+                    root_moves,
+                };
+            }
         }
 
         let max_depth = self
@@ -264,7 +318,8 @@ impl Search {
         let mut alpha = -INFINITE_SCORE;
         let mut move_scores = Vec::with_capacity(moves.len());
 
-        let exact_candidates = config.policy.is_some() && config.level_profile.policy_weight > 0;
+        let exact_candidates = config.policy.is_some()
+            && (config.level_profile.policy_weight > 0 || config.level_profile.sample_policy);
         for (move_index, chess_move) in moves.into_iter().enumerate() {
             if self.should_stop() {
                 break;
@@ -805,8 +860,9 @@ mod tests {
             result.best_move,
             Some(ChessMove::new(Square::E2, Square::E4, None))
         );
-        assert_eq!(result.depth, 0);
-        assert_eq!(result.nodes, 0);
+        assert_eq!(result.depth, 2);
+        assert!(result.nodes > 0);
+        assert!(result.root_moves.len() <= 6);
     }
 
     #[test]

@@ -28,7 +28,7 @@ Implemented:
 - early `stop`;
 - checkmate, stalemate, repetition, fifty-move rule and basic insufficient-material detection;
 - a CNN policy + WDL model trained on human games;
-- five levels: 1–2 use model sampling, 3–4 combine the model with search, and 5 use full search;
+- five levels: 1–2 use model sampling with shallow safety search, 3–4 combine the model with deeper search, and 5 use full search;
 - a local UCI match runner for engine-vs-engine testing.
 
 Not implemented yet:
@@ -78,8 +78,8 @@ setoption name OpponentElo value 1500
 
 | Level | Target profile | Behavior |
 |---:|---:|---|
-| 1 | ~800 | Samples from the human-move policy without search |
-| 2 | ~1100 | Policy sampling with lower temperature |
+| 1 | ~800 | Samples from the human-move policy with a depth-2 safety filter |
+| 2 | ~1100 | Policy sampling with a depth-2 safety filter |
 | 3 | ~1400 | Searches the 8 most likely model candidates |
 | 4 | ~1700 | Searches 16 candidates with a policy-weight bonus |
 | 5 | ~2100 | Full search |

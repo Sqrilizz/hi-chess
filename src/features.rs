@@ -177,6 +177,41 @@ pub fn sample_policy(policy: &Policy, random_value: f32) -> Option<ChessMove> {
         .map(|policy_move| policy_move.chess_move)
 }
 
+pub fn sample_policy_filtered(
+    policy: &Policy,
+    allowed_moves: &[ChessMove],
+    random_value: f32,
+) -> Option<ChessMove> {
+    if allowed_moves.is_empty() {
+        return sample_policy(policy, random_value);
+    }
+
+    let total: f32 = policy
+        .moves
+        .iter()
+        .filter(|policy_move| allowed_moves.contains(&policy_move.chess_move))
+        .map(|policy_move| policy_move.probability)
+        .sum();
+    if total <= 0.0 {
+        return allowed_moves.first().copied();
+    }
+
+    let mut cumulative = 0.0;
+    let target = random_value.clamp(0.0, 1.0) * total;
+    let mut last_move = None;
+    for policy_move in &policy.moves {
+        if !allowed_moves.contains(&policy_move.chess_move) {
+            continue;
+        }
+        cumulative += policy_move.probability;
+        last_move = Some(policy_move.chess_move);
+        if target < cumulative {
+            return Some(policy_move.chess_move);
+        }
+    }
+    last_move
+}
+
 pub fn top_policy_moves(policy: &Policy, count: usize) -> Vec<PolicyMove> {
     let mut moves = policy.moves.clone();
     moves.sort_unstable_by(|left, right| {
@@ -240,7 +275,7 @@ fn softmax(values: [f32; VALUE_CLASSES], temperature: f32) -> [f32; VALUE_CLASSE
 mod tests {
     use super::{
         INPUT_BYTES, INPUT_CHANNELS, POLICY_MOVES, encode_board, move_index, policy_from_logits,
-        sample_policy, top_policy_moves,
+        sample_policy, sample_policy_filtered, top_policy_moves,
     };
     use chess::{Board, ChessMove, MoveGen, Piece, Square};
     use std::str::FromStr;
@@ -291,6 +326,22 @@ mod tests {
         let policy = policy_from_logits(&board, &logits, [0.0; 3], 1.0);
         let sampled = sample_policy(&policy, 0.5).unwrap();
         assert!(board.legal(sampled));
+    }
+
+    #[test]
+    fn filtered_sampling_only_returns_allowed_moves() {
+        let board = Board::default();
+        let mut logits = [0.0; POLICY_MOVES];
+        logits[move_index(ChessMove::new(Square::E2, Square::E4, None))] = 10.0;
+        logits[move_index(ChessMove::new(Square::D2, Square::D4, None))] = 5.0;
+        let policy = policy_from_logits(&board, &logits, [0.0; 3], 1.0);
+        let sampled = sample_policy_filtered(
+            &policy,
+            &[ChessMove::new(Square::D2, Square::D4, None)],
+            0.1,
+        )
+        .unwrap();
+        assert_eq!(sampled, ChessMove::new(Square::D2, Square::D4, None));
     }
 
     #[test]
