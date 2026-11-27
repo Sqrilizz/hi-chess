@@ -24,7 +24,8 @@ Implemented:
 - early `stop`;
 - checkmate, stalemate, repetition, fifty-move rule and basic insufficient-material detection;
 - a CNN policy + WDL model trained on human games;
-- five levels: 1–2 use model sampling, 3–4 combine the model with search, and 5 use full search.
+- five levels: 1–2 use model sampling, 3–4 combine the model with search, and 5 use full search;
+- a local UCI match runner for engine-vs-engine testing.
 
 Not implemented yet:
 
@@ -167,6 +168,45 @@ Later epochs began to overfit, so `models/hi-v1.bpk` contains the best epoch rat
   --device discrete
 ```
 
+## Engine matches
+
+HI can play local matches against any UCI engine, including Stockfish:
+
+```bash
+./target/release/hi match \
+  --opponent engines/Stockfish/src/stockfish \
+  --level 3 \
+  --games 20 \
+  --tc 10+0.1 \
+  --hi-elo 1400 \
+  --opponent-elo 1400 \
+  --opponent-option 'UCI_LimitStrength=true' \
+  --opponent-option 'UCI_Elo=1400' \
+  --output matches/hi-level3-vs-stockfish1400.tsv
+```
+
+The runner alternates colors, pairs opening positions, manages both clocks, detects terminal positions and writes a TSV log with UCI moves. It reports wins, draws, losses, score and a rough Elo update. Small matches are not precise Elo measurements.
+
+Useful options:
+
+- `--level 1..5`;
+- `--no-model` for pure-search Level 5;
+- `--model <path>`;
+- `--games <n>`;
+- `--tc <seconds+increment>`;
+- `--openings <fen-file>`;
+- `--opponent-option Name=Value`;
+- `--max-plies <n>`.
+
+A default opening suite is included in `assets/openings.fen`. Engines, match logs, datasets and model weights are ignored by Git.
+
+Example local Stockfish build:
+
+```bash
+git clone --depth 1 https://github.com/official-stockfish/Stockfish.git engines/Stockfish
+make -C engines/Stockfish/src profile-build ARCH=x86-64-avx512 -j
+```
+
 ## Verification
 
 ```bash
@@ -191,6 +231,8 @@ cargo fmt --all -- --check
 - `src/hybrid.rs` — policy/search candidate selection;
 - `src/level.rs` — playing-level profiles;
 - `src/options.rs` — UCI options;
+- `src/arena.rs` — local UCI matches, clocks, results and Elo;
+- `src/uci_client.rs` — UCI process client;
 - `src/main.rs` — CLI and UCI entry point.
 
 Move generation uses the MIT-licensed [`chess`](https://github.com/jordanbray/chess) crate. Search, evaluation, UCI, data preparation and the neural network are implemented in this project. Because the project uses `pgn-reader`, HI is distributed under GPL-3.0-or-later.
@@ -202,7 +244,8 @@ Move generation uses the MIT-licensed [`chess`](https://github.com/jordanbray/ch
 - extend position history;
 - enlarge the training dataset;
 - add neural evaluation to the search;
-- add a transposition table and multi-threaded search.
+- add a transposition table and multi-threaded search;
+- run larger calibrated matches for every HI level.
 
 ## License
 

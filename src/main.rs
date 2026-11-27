@@ -1,5 +1,5 @@
 use chess::Board;
-use hi_chess::{features::top_policy_moves, inference, perft, prepare, train, uci};
+use hi_chess::{arena, features::top_policy_moves, inference, perft, prepare, train, uci};
 use std::{env, fmt::Display, path::PathBuf, process, str::FromStr};
 
 const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -13,6 +13,7 @@ fn main() {
         [command, rest @ ..] if command == "prepare" => run_prepare(rest),
         [command, rest @ ..] if command == "train" => run_train(rest),
         [command, rest @ ..] if command == "predict" => run_predict(rest),
+        [command, rest @ ..] if command == "match" => run_match(rest),
         [flag] if flag == "--help" || flag == "-h" => print_usage(),
         _ => fail("invalid arguments"),
     }
@@ -122,6 +123,20 @@ fn run_predict(arguments: &[String]) {
     }
 }
 
+fn run_match(arguments: &[String]) {
+    let options = match arena::MatchOptions::parse(arguments) {
+        Ok(options) => options,
+        Err(error) => fail(&error),
+    };
+    match arena::run_match(&options) {
+        Ok(summary) => {
+            summary.print();
+            println!("match log: {}", options.output_path.display());
+        }
+        Err(error) => fail(&format!("match failed: {error}")),
+    }
+}
+
 struct PredictOptions {
     model: PathBuf,
     fen: String,
@@ -207,6 +222,7 @@ fn print_usage() {
         "  hi train [--train <train.bin>] [--validation <validation.bin>] [--output <model.bpk>]"
     );
     println!("  hi predict [--model <model.bpk>] [--fen <fen>] [--elo <rating>]");
+    println!("  hi match --opponent <engine> [--level <1-5>] [--games <n>] [--tc <10+0.1>]");
     println!("  hi --help");
 }
 

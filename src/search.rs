@@ -515,7 +515,7 @@ fn is_draw(board: &Board, halfmove_clock: u16, path: &[u64]) -> bool {
         || insufficient_material(board)
 }
 
-fn insufficient_material(board: &Board) -> bool {
+pub fn insufficient_material(board: &Board) -> bool {
     let major_pieces =
         *board.pieces(Piece::Pawn) | *board.pieces(Piece::Rook) | *board.pieces(Piece::Queen);
     if major_pieces.popcnt() != 0 {

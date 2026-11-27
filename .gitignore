@@ -2,4 +2,6 @@
 /data/*.bin
 /data/*.zst
 /models/
+/matches/
+/engines/
 /skills/
