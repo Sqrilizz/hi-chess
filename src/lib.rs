@@ -1,4 +1,5 @@
 pub mod arena;
+pub mod bench;
 pub mod dataset;
 pub mod evaluation;
 pub mod features;
@@ -12,5 +13,6 @@ pub mod perft;
 pub mod prepare;
 pub mod search;
 pub mod train;
+pub mod transposition;
 pub mod uci;
 pub mod uci_client;

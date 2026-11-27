@@ -22,6 +22,7 @@ Implemented:
 - alpha-beta search with iterative deepening;
 - quiescence search;
 - move ordering, killer moves and history heuristic;
+- transposition table with exact/lower/upper bounds;
 - depth, node, time and clock limits;
 - early `stop`;
 - checkmate, stalemate, repetition, fifty-move rule and basic insufficient-material detection;
@@ -34,7 +35,6 @@ Not implemented yet:
 - a dedicated promotion head;
 - multi-position history beyond the last move;
 - neural evaluation inside the search;
-- transposition table;
 - multi-threaded search;
 - opening book;
 - precise Elo calibration.
@@ -101,6 +101,14 @@ Supported `go` parameters:
 ```
 
 Expected result: `197281`.
+
+## Search benchmark
+
+```bash
+./target/release/hi bench --depth 7
+```
+
+Runs fixed-depth searches from the starting position, Kiwipete and an endgame position, then reports nodes, elapsed time and NPS.
 
 ## Dataset preparation
 
@@ -230,6 +238,7 @@ cargo fmt --all -- --check
 
 - `src/uci.rs` — UCI protocol and search management;
 - `src/search.rs` — alpha-beta, quiescence and search limits;
+- `src/transposition.rs` — transposition table;
 - `src/evaluation.rs` — material and positional evaluation;
 - `src/move_order.rs` — move ordering;
 - `src/perft.rs` — move-generation validation;
@@ -243,6 +252,7 @@ cargo fmt --all -- --check
 - `src/level.rs` — playing-level profiles;
 - `src/options.rs` — UCI options;
 - `src/arena.rs` — local UCI matches, clocks, results and Elo;
+- `src/bench.rs` — fixed-depth search benchmark;
 - `src/uci_client.rs` — UCI process client;
 - `src/main.rs` — CLI and UCI entry point;
 - `scripts/calibrate.sh` — five-level Stockfish calibration;
@@ -257,7 +267,7 @@ Move generation uses the MIT-licensed [`chess`](https://github.com/jordanbray/ch
 - extend position history;
 - enlarge the training dataset;
 - add neural evaluation to the search;
-- add a transposition table and multi-threaded search;
+- tune the transposition table and add multi-threaded search;
 - run larger calibrated matches for every HI level.
 
 ## License

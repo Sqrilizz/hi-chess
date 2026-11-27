@@ -1,5 +1,5 @@
 use chess::Board;
-use hi_chess::{arena, features::top_policy_moves, inference, perft, prepare, train, uci};
+use hi_chess::{arena, bench, features::top_policy_moves, inference, perft, prepare, train, uci};
 use std::{env, fmt::Display, path::PathBuf, process, str::FromStr};
 
 const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -14,6 +14,7 @@ fn main() {
         [command, rest @ ..] if command == "train" => run_train(rest),
         [command, rest @ ..] if command == "predict" => run_predict(rest),
         [command, rest @ ..] if command == "match" => run_match(rest),
+        [command, rest @ ..] if command == "bench" => run_bench(rest),
         [flag] if flag == "--help" || flag == "-h" => print_usage(),
         _ => fail("invalid arguments"),
     }
@@ -123,6 +124,16 @@ fn run_predict(arguments: &[String]) {
     }
 }
 
+fn run_bench(arguments: &[String]) {
+    let options = match bench::BenchOptions::parse(arguments) {
+        Ok(options) => options,
+        Err(error) => fail(&error),
+    };
+    if let Err(error) = bench::run(&options) {
+        fail(&format!("benchmark failed: {error}"));
+    }
+}
+
 fn run_match(arguments: &[String]) {
     let options = match arena::MatchOptions::parse(arguments) {
         Ok(options) => options,
@@ -223,6 +234,7 @@ fn print_usage() {
     );
     println!("  hi predict [--model <model.bpk>] [--fen <fen>] [--elo <rating>]");
     println!("  hi match --opponent <engine> [--level <1-5>] [--games <n>] [--tc <10+0.1>]");
+    println!("  hi bench [--depth <n>]");
     println!("  hi --help");
 }
 

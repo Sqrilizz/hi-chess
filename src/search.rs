@@ -4,6 +4,7 @@ use crate::{
     hybrid::{HybridConfig, ScoredMove, filter_candidates, select_move},
     level::profile,
     move_order::{is_capture, is_tactical, order_moves},
+    transposition::{Bound, TranspositionTable},
 };
 use chess::{Board, BoardStatus, ChessMove, Color, MoveGen, Piece};
 use std::{
@@ -21,6 +22,7 @@ const MAX_PLY: usize = 128;
 const MAX_QUIESCENCE_PLY: usize = 8;
 const STOP_CHECK_INTERVAL: u64 = 1_024;
 const HALFMOVE_DRAW_LIMIT: u16 = 100;
+const DEFAULT_TT_ENTRIES: usize = 1 << 18;
 
 #[derive(Clone, Debug, Default)]
 pub struct SearchLimits {
@@ -70,6 +72,7 @@ pub struct Search {
     selective_depth: usize,
     killers: Vec<[Option<ChessMove>; 2]>,
     history: [[i32; 64]; 64],
+    transpositions: TranspositionTable,
     stopped: bool,
 }
 
@@ -87,6 +90,7 @@ impl Search {
             selective_depth: 0,
             killers: vec![[None, None]; MAX_PLY + 1],
             history: [[0; 64]; 64],
+            transpositions: TranspositionTable::new(DEFAULT_TT_ENTRIES),
             stopped: false,
         }
     }
@@ -319,15 +323,31 @@ impl Search {
             return 0;
         }
 
+        let hash = board.get_hash();
+        let mut preferred = None;
+        if depth > 0
+            && let Some(entry) = self.transpositions.probe(hash)
+        {
+            let score = score_from_table(entry.score, ply);
+            if entry.depth as usize >= depth && bound_cutoff(entry.bound, score, alpha, beta) {
+                return score;
+            }
+            preferred = entry.best_move;
+        }
+
         if depth == 0 {
             return self.quiescence(board, alpha, beta, ply, halfmove_clock, path);
         }
 
-        let moves = order_moves(&board, None, ply, &self.killers, &self.history);
+        let original_alpha = alpha;
+        let moves = order_moves(&board, preferred, ply, &self.killers, &self.history);
         let mut best_score = -INFINITE_SCORE;
+        let mut best_move = None;
+        let mut completed = true;
 
         for chess_move in moves {
             if self.should_stop() {
+                completed = false;
                 break;
             }
 
@@ -349,6 +369,7 @@ impl Search {
 
             if score > best_score {
                 best_score = score;
+                best_move = Some(chess_move);
             }
             alpha = alpha.max(score);
 
@@ -361,6 +382,23 @@ impl Search {
                 }
                 break;
             }
+        }
+
+        if completed {
+            let bound = if best_score >= beta {
+                Bound::Lower
+            } else if best_score <= original_alpha {
+                Bound::Upper
+            } else {
+                Bound::Exact
+            };
+            self.transpositions.store(
+                hash,
+                score_to_table(best_score, ply),
+                depth,
+                bound,
+                best_move,
+            );
         }
 
         best_score
@@ -548,9 +586,40 @@ fn is_mate_score(score: i32) -> bool {
     score.abs() > MATE_THRESHOLD
 }
 
+fn bound_cutoff(bound: Bound, score: i32, alpha: i32, beta: i32) -> bool {
+    match bound {
+        Bound::Exact => true,
+        Bound::Lower => score >= beta,
+        Bound::Upper => score <= alpha,
+    }
+}
+
+fn score_to_table(score: i32, ply: usize) -> i32 {
+    if score > MATE_THRESHOLD {
+        score + ply as i32
+    } else if score < -MATE_THRESHOLD {
+        score - ply as i32
+    } else {
+        score
+    }
+}
+
+fn score_from_table(score: i32, ply: usize) -> i32 {
+    if score > MATE_THRESHOLD {
+        score - ply as i32
+    } else if score < -MATE_THRESHOLD {
+        score + ply as i32
+    } else {
+        score
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{MATE_SCORE, Search, SearchLimits, halfmove_clock_after};
+    use super::{
+        Bound, MATE_SCORE, Search, SearchLimits, bound_cutoff, halfmove_clock_after,
+        score_from_table, score_to_table,
+    };
     use crate::{
         features::{POLICY_MOVES, move_index, policy_from_logits},
         hybrid::HybridConfig,
@@ -561,6 +630,22 @@ mod tests {
 
     fn atomic_stop() -> Arc<std::sync::atomic::AtomicBool> {
         Arc::new(std::sync::atomic::AtomicBool::new(false))
+    }
+
+    #[test]
+    fn mate_scores_survive_table_roundtrip() {
+        let score = MATE_SCORE - 3;
+        assert_eq!(score_from_table(score_to_table(score, 5), 5), score);
+        assert_eq!(score_from_table(score_to_table(-score, 5), 5), -score);
+    }
+
+    #[test]
+    fn bounds_cutoff_only_valid_windows() {
+        assert!(bound_cutoff(Bound::Exact, 0, -10, 10));
+        assert!(bound_cutoff(Bound::Lower, 10, -10, 10));
+        assert!(!bound_cutoff(Bound::Lower, 0, -10, 10));
+        assert!(bound_cutoff(Bound::Upper, -10, -10, 10));
+        assert!(!bound_cutoff(Bound::Upper, 0, -10, 10));
     }
 
     #[test]
