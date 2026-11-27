@@ -10,7 +10,13 @@ use burn::{
     tensor::DeviceKind,
 };
 use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
-use std::{fmt::Display, fs, ops::Not, path::PathBuf, time::Instant};
+use std::{
+    fmt::Display,
+    fs,
+    ops::Not,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 const VALUE_LOSS_WEIGHT: f32 = 0.25;
 const LOG_INTERVAL: usize = 25;
@@ -22,6 +28,7 @@ pub struct TrainOptions {
     pub train: PathBuf,
     pub validation: PathBuf,
     pub output: PathBuf,
+    pub resume: Option<PathBuf>,
     pub epochs: usize,
     pub batch_size: usize,
     pub learning_rate: f64,
@@ -37,6 +44,16 @@ pub enum DeviceSelection {
     Cpu,
 }
 
+pub fn device_for(selection: DeviceSelection) -> Device {
+    match selection {
+        DeviceSelection::Auto => training_device(false),
+        DeviceSelection::Discrete => training_device(true),
+        DeviceSelection::Cpu => Device::wgpu(DeviceKind::Cpu)
+            .autodiff()
+            .gradient_checkpointing(),
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TrainStats {
     pub steps: usize,
@@ -46,16 +63,16 @@ pub struct TrainStats {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-struct Metrics {
-    loss: f32,
-    top1: f32,
-    top3: f32,
-    value_accuracy: f32,
-    white_top1: f32,
-    black_top1: f32,
-    white_samples: usize,
-    black_samples: usize,
-    samples: usize,
+pub struct Metrics {
+    pub loss: f32,
+    pub top1: f32,
+    pub top3: f32,
+    pub value_accuracy: f32,
+    pub white_top1: f32,
+    pub black_top1: f32,
+    pub white_samples: usize,
+    pub black_samples: usize,
+    pub samples: usize,
 }
 
 impl TrainOptions {
@@ -64,6 +81,7 @@ impl TrainOptions {
             train: PathBuf::from("data/train.bin"),
             validation: PathBuf::from("data/validation.bin"),
             output: PathBuf::from("models/hi-v3.bpk"),
+            resume: None,
             epochs: 10,
             batch_size: 128,
             learning_rate: 1e-3,
@@ -89,6 +107,11 @@ impl TrainOptions {
                 "--output" => {
                     options.output =
                         PathBuf::from(argument_value::<String>(arguments, &mut index, "--output")?)
+                }
+                "--resume" => {
+                    options.resume = Some(PathBuf::from(argument_value::<String>(
+                        arguments, &mut index, "--resume",
+                    )?))
                 }
                 "--epochs" => options.epochs = argument_value(arguments, &mut index, "--epochs")?,
                 "--batch-size" => {
@@ -137,13 +160,7 @@ pub fn train(options: &TrainOptions) -> Result<TrainStats, String> {
         return Err("train and validation datasets must not be empty".to_string());
     }
 
-    let device = match options.device {
-        DeviceSelection::Auto => training_device(false),
-        DeviceSelection::Discrete => training_device(true),
-        DeviceSelection::Cpu => Device::wgpu(DeviceKind::Cpu)
-            .autodiff()
-            .gradient_checkpointing(),
-    };
+    let device = device_for(options.device);
     println!("device: {device:?}");
     println!("architecture: V3");
     println!(
@@ -152,13 +169,12 @@ pub fn train(options: &TrainOptions) -> Result<TrainStats, String> {
         validation_records.len()
     );
 
-    train_model(
-        ChessNetV3::new(&device).train(),
-        options,
-        &train_records,
-        &validation_records,
-        &device,
-    )
+    let model = match &options.resume {
+        Some(path) => ChessNetV3::load_for_training(path, &device)
+            .map_err(|error| format!("resume model load failed: {error}"))?,
+        None => ChessNetV3::new(&device).train(),
+    };
+    train_model(model, options, &train_records, &validation_records, &device)
 }
 
 fn train_model<M: ChessModel>(
@@ -440,6 +456,22 @@ fn evaluate<M: ChessModel>(
     Ok(metrics)
 }
 
+pub fn evaluate_checkpoint(
+    path: &Path,
+    records: &[TrainingRecord],
+    device: &Device,
+    batch_size: usize,
+) -> Result<Metrics, String> {
+    if records.is_empty() {
+        return Err("validation dataset must not be empty".to_string());
+    }
+    if batch_size == 0 {
+        return Err("batch size must be positive".to_string());
+    }
+    let model = ChessNetV3::load(path, device)?;
+    evaluate(&model, records, device, batch_size)
+}
+
 fn save_model<M: ChessModel>(model: &M, path: &std::path::Path) -> Result<(), String> {
     if let Some(parent) = path
         .parent()
@@ -483,6 +515,8 @@ mod tests {
             "64",
             "--device",
             "discrete",
+            "--resume",
+            "resume.bpk",
         ]
         .into_iter()
         .map(str::to_string)
@@ -492,6 +526,7 @@ mod tests {
         assert_eq!(options.epochs, 3);
         assert_eq!(options.batch_size, 64);
         assert_eq!(options.device, DeviceSelection::Discrete);
+        assert_eq!(options.resume, Some(PathBuf::from("resume.bpk")));
     }
 
     #[test]

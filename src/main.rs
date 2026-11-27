@@ -1,5 +1,7 @@
-use chess::Board;
-use hi_chess::{arena, bench, features::top_policy_moves, inference, perft, prepare, train, uci};
+use chess::{Board, ChessMove, Color};
+use hi_chess::{
+    arena, bench, features::top_policy_moves, inference, perft, prepare, review, train, uci,
+};
 use std::{env, fmt::Display, path::PathBuf, process, str::FromStr};
 
 const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -12,7 +14,9 @@ fn main() {
         [command, rest @ ..] if command == "perft" => run_perft(rest),
         [command, rest @ ..] if command == "prepare" => run_prepare(rest),
         [command, rest @ ..] if command == "train" => run_train(rest),
+        [command, rest @ ..] if command == "evaluate" => run_evaluate(rest),
         [command, rest @ ..] if command == "predict" => run_predict(rest),
+        [command, rest @ ..] if command == "review" => run_review(rest),
         [command, rest @ ..] if command == "match" => run_match(rest),
         [command, rest @ ..] if command == "bench" => run_bench(rest),
         [flag] if flag == "--help" || flag == "-h" => print_usage(),
@@ -77,6 +81,30 @@ fn run_train(arguments: &[String]) {
     }
 }
 
+fn run_evaluate(arguments: &[String]) {
+    let options = match EvaluateOptions::parse(arguments) {
+        Ok(options) => options,
+        Err(error) => fail(&error),
+    };
+    let records = match hi_chess::dataset::read_records(&options.validation) {
+        Ok(records) => records,
+        Err(error) => fail(&format!("validation read failed: {error}")),
+    };
+    let device = train::device_for(options.device);
+    match train::evaluate_checkpoint(&options.model, &records, &device, options.batch_size) {
+        Ok(metrics) => {
+            println!("records: {}", metrics.samples);
+            println!("loss: {:.4}", metrics.loss);
+            println!("top1: {:.2}%", metrics.top1 * 100.0);
+            println!("top3: {:.2}%", metrics.top3 * 100.0);
+            println!("wdl: {:.2}%", metrics.value_accuracy * 100.0);
+            println!("white top1: {:.2}%", metrics.white_top1 * 100.0);
+            println!("black top1: {:.2}%", metrics.black_top1 * 100.0);
+        }
+        Err(error) => fail(&format!("evaluation failed: {error}")),
+    }
+}
+
 fn run_predict(arguments: &[String]) {
     let options = match PredictOptions::parse(arguments) {
         Ok(options) => options,
@@ -134,6 +162,20 @@ fn run_bench(arguments: &[String]) {
     }
 }
 
+fn run_review(arguments: &[String]) {
+    let options = match ReviewOptions::parse(arguments) {
+        Ok(options) => options,
+        Err(error) => fail(&error),
+    };
+    match review::review_game(&options.fen, &options.moves, options.depth, options.player) {
+        Ok(result) => match serde_json::to_string_pretty(&result) {
+            Ok(json) => println!("{json}"),
+            Err(error) => fail(&format!("review serialization failed: {error}")),
+        },
+        Err(error) => fail(&format!("review failed: {error}")),
+    }
+}
+
 fn run_match(arguments: &[String]) {
     let options = match arena::MatchOptions::parse(arguments) {
         Ok(options) => options,
@@ -145,6 +187,117 @@ fn run_match(arguments: &[String]) {
             println!("match log: {}", options.output_path.display());
         }
         Err(error) => fail(&format!("match failed: {error}")),
+    }
+}
+
+struct EvaluateOptions {
+    model: PathBuf,
+    validation: PathBuf,
+    batch_size: usize,
+    device: train::DeviceSelection,
+}
+
+impl EvaluateOptions {
+    fn parse(arguments: &[String]) -> Result<Self, String> {
+        let mut options = Self {
+            model: PathBuf::from("models/hi-v3.bpk"),
+            validation: PathBuf::from("data/validation-v3.bin"),
+            batch_size: 128,
+            device: train::DeviceSelection::Auto,
+        };
+        let mut index = 0;
+        while index < arguments.len() {
+            match arguments[index].as_str() {
+                "--model" => {
+                    options.model =
+                        PathBuf::from(argument_value::<String>(arguments, &mut index, "--model")?)
+                }
+                "--validation" => {
+                    options.validation = PathBuf::from(argument_value::<String>(
+                        arguments,
+                        &mut index,
+                        "--validation",
+                    )?)
+                }
+                "--batch-size" => {
+                    options.batch_size = argument_value(arguments, &mut index, "--batch-size")?
+                }
+                "--device" => {
+                    let value = argument_value::<String>(arguments, &mut index, "--device")?;
+                    options.device = match value.as_str() {
+                        "auto" => train::DeviceSelection::Auto,
+                        "discrete" => train::DeviceSelection::Discrete,
+                        "cpu" => train::DeviceSelection::Cpu,
+                        _ => return Err("device must be auto, discrete or cpu".to_string()),
+                    };
+                }
+                unknown => return Err(format!("unknown evaluate option: {unknown}")),
+            }
+            index += 1;
+        }
+        if options.batch_size == 0 {
+            return Err("batch size must be positive".to_string());
+        }
+        Ok(options)
+    }
+}
+
+struct ReviewOptions {
+    fen: String,
+    moves: Vec<ChessMove>,
+    depth: u16,
+    player: Color,
+}
+
+impl ReviewOptions {
+    fn parse(arguments: &[String]) -> Result<Self, String> {
+        let mut fen = START_FEN.to_string();
+        let mut move_text = None;
+        let mut depth = review::default_depth();
+        let mut player = Color::White;
+        let mut index = 0;
+
+        while index < arguments.len() {
+            match arguments[index].as_str() {
+                "--fen" => fen = argument_value(arguments, &mut index, "--fen")?,
+                "--moves" => {
+                    move_text = Some(argument_value::<String>(arguments, &mut index, "--moves")?)
+                }
+                "--depth" => depth = argument_value(arguments, &mut index, "--depth")?,
+                "--player" => {
+                    let value = argument_value::<String>(arguments, &mut index, "--player")?;
+                    player = match value.as_str() {
+                        "white" => Color::White,
+                        "black" => Color::Black,
+                        _ => return Err("player must be white or black".to_string()),
+                    };
+                }
+                unknown => return Err(format!("unknown review option: {unknown}")),
+            }
+            index += 1;
+        }
+
+        let move_text = move_text.ok_or_else(|| "--moves is required".to_string())?;
+        let moves: Vec<ChessMove> = move_text
+            .split_whitespace()
+            .map(ChessMove::from_str)
+            .collect::<Result<_, _>>()
+            .map_err(|error| format!("invalid move: {error}"))?;
+        if moves.is_empty() {
+            return Err("--moves must contain at least one move".to_string());
+        }
+        if depth == 0 || depth > review::max_depth() {
+            return Err(format!(
+                "depth must be between 1 and {}",
+                review::max_depth()
+            ));
+        }
+        Ok(Self {
+            fen,
+            moves,
+            depth,
+            player,
+        })
     }
 }
 
@@ -230,9 +383,15 @@ fn print_usage() {
         "  hi prepare --input <games.pgn.zst> [--input <more.pgn.zst> ...] [--train <train.bin>] [--validation <validation.bin>]"
     );
     println!(
-        "  hi train [--train <train.bin>] [--validation <validation.bin>] [--output <model.bpk>]"
+        "  hi train [--train <train.bin>] [--validation <validation.bin>] [--output <model.bpk>] [--resume <model.bpk>]"
+    );
+    println!(
+        "  hi evaluate [--model <model.bpk>] [--validation <validation.bin>] [--device <auto|discrete|cpu>]"
     );
     println!("  hi predict [--model <model.bpk>] [--fen <fen>] [--elo <rating>]");
+    println!(
+        "  hi review --moves <uci moves> [--fen <fen>] [--depth <n>] [--player <white|black>]"
+    );
     println!("  hi match --opponent <engine> [--level <1-5>] [--games <n>] [--tc <10+0.1>]");
     println!("  hi bench [--depth <n>]");
     println!("  hi --help");

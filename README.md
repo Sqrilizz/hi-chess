@@ -138,6 +138,15 @@ To train an already prepared dataset:
   --device discrete
 ```
 
+Use `--resume <model.bpk>` to fine-tune an existing v3 checkpoint with a fresh optimizer. Evaluate a checkpoint on a prepared validation set with:
+
+```bash
+./target/release/hi evaluate \
+  --model models/hi-v3.bpk \
+  --validation data/validation-v3.bin \
+  --device discrete
+```
+
 The pipeline keeps ratings from 600 to 2200, skips the first 10 plies, samples up to 24 positions per game and splits complete games into train and validation sets in a 9:1 ratio. Policy targets and legal-move masks use the same side-to-move orientation as the input planes. Dataset format v1 is migrated automatically when read; new datasets use format v2.
 
 The current trainer builds the v3 CNN with approximately 2.71 million parameters:
@@ -193,6 +202,21 @@ The model was trained on 960,000 positions from 46,441 games. The best validatio
   --device discrete
 ```
 
+## Review a game
+
+HI can classify every move after a game and return the result as JSON:
+
+```bash
+./target/release/hi review \
+  --moves "f2f3 e7e5 g2g4 d8h4" \
+  --depth 4 \
+  --player white
+```
+
+The review includes `brilliant`, `great`, `best`, `good`, `inaccuracy`, `mistake` and `blunder` labels, the best move and alternatives, centipawn loss, win probability, an evaluation graph, per-side accuracy and short original HI comments. `--fen` sets a custom starting position. The default analysis depth is 8; deeper reviews are more accurate but slower.
+
+`Brilliant` is deliberately conservative: it requires a winning best move that is either the only strong option or a material sacrifice. The classifier is inspired by Chess.com-style game review but is not the same proprietary algorithm.
+
 ## Engine matches
 
 HI can play local matches against any UCI engine, including Stockfish:
@@ -223,7 +247,7 @@ Useful options:
 - `--opponent-option Name=Value`;
 - `--max-plies <n>`.
 
-A default opening suite is included in `assets/openings.fen`. Engines, match logs, datasets and model weights are ignored by Git.
+A default suite of 59 opening positions is included in `assets/openings.fen`. Engines, match logs, datasets and model weights are ignored by Git.
 
 Example local Stockfish build:
 
@@ -261,7 +285,9 @@ cargo fmt --all -- --check
 - `src/dataset.rs` — binary training-record format;
 - `src/prepare.rs` — PGN/Zstd to train/validation conversion;
 - `src/network.rs` — Burn policy + WDL CNN;
-- `src/train.rs` — training and validation;
+- `src/train.rs` — training, resume and validation;
+- `src/review.rs` — move classification and game review;
+- `src/personality.rs` — original HI comments and reactions;
 - `src/inference.rs` — model loading and prediction;
 - `src/hybrid.rs` — policy/search candidate selection;
 - `src/level.rs` — playing-level profiles;

@@ -57,6 +57,11 @@ struct RootSearch {
     completed: bool,
 }
 
+enum RootMode {
+    Preferred(Option<ChessMove>),
+    Exact,
+}
+
 #[derive(Clone, Copy)]
 struct NodeState {
     ply: usize,
@@ -172,12 +177,12 @@ impl Search {
                     safety_depth,
                     halfmove_clock,
                     &mut safety_path,
-                    None,
                     HybridConfig {
                         policy: Some(policy),
                         level_profile,
                         random_value: config.random_value,
                     },
+                    RootMode::Preferred(None),
                 );
                 if root.completed
                     && let Some(best_score) =
@@ -257,12 +262,12 @@ impl Search {
                 depth,
                 halfmove_clock,
                 &mut path,
-                result.best_move,
                 HybridConfig {
                     policy,
                     level_profile,
                     random_value: config.random_value,
                 },
+                RootMode::Preferred(result.best_move),
             );
 
             if let Some(selected) =
@@ -304,31 +309,132 @@ impl Search {
         result
     }
 
+    pub fn search_exact<F>(
+        &mut self,
+        board: Board,
+        prior_hashes: &[u64],
+        halfmove_clock: u16,
+        mut on_info: F,
+    ) -> SearchResult
+    where
+        F: FnMut(SearchInfo),
+    {
+        let root_moves: Vec<ChessMove> = MoveGen::new_legal(&board).collect();
+        let Some(first_move) = root_moves.first().copied() else {
+            return SearchResult {
+                best_move: None,
+                score: 0,
+                depth: 0,
+                selective_depth: 0,
+                nodes: 0,
+                elapsed: self.elapsed(),
+                root_moves: Vec::new(),
+            };
+        };
+        let max_depth = self
+            .limits
+            .depth
+            .map(usize::from)
+            .unwrap_or(MAX_PLY)
+            .clamp(1, MAX_PLY);
+        let mut path = prior_hashes.to_vec();
+        let mut result = SearchResult {
+            best_move: Some(first_move),
+            score: evaluate(&board),
+            depth: 0,
+            selective_depth: 0,
+            nodes: 0,
+            elapsed: Duration::ZERO,
+            root_moves: Vec::new(),
+        };
+
+        for depth in 1..=max_depth {
+            if self.should_stop() {
+                break;
+            }
+            self.stopped = false;
+            let root = self.search_root(
+                &board,
+                depth,
+                halfmove_clock,
+                &mut path,
+                HybridConfig {
+                    policy: None,
+                    level_profile: profile(5),
+                    random_value: 0.0,
+                },
+                RootMode::Exact,
+            );
+            if root.completed {
+                let mut move_scores = root.move_scores;
+                move_scores.sort_unstable_by(|left, right| {
+                    right
+                        .score
+                        .cmp(&left.score)
+                        .then_with(|| left.chess_move.cmp(&right.chess_move))
+                });
+                if let Some(best) = move_scores.first().copied() {
+                    result = SearchResult {
+                        best_move: Some(best.chess_move),
+                        score: best.score,
+                        depth,
+                        selective_depth: self.selective_depth,
+                        nodes: self.nodes,
+                        elapsed: self.elapsed(),
+                        root_moves: move_scores,
+                    };
+                    on_info(SearchInfo {
+                        depth,
+                        selective_depth: self.selective_depth,
+                        score: best.score,
+                        nodes: self.nodes,
+                        elapsed: self.elapsed(),
+                        best_move: best.chess_move,
+                    });
+                }
+            }
+            if self.stopped || is_mate_score(result.score) {
+                break;
+            }
+        }
+
+        result.nodes = self.nodes;
+        result.selective_depth = self.selective_depth;
+        result.elapsed = self.elapsed();
+        result
+    }
+
     fn search_root(
         &mut self,
         board: &Board,
         depth: usize,
         halfmove_clock: u16,
         path: &mut Vec<u64>,
-        preferred: Option<ChessMove>,
         config: HybridConfig<'_>,
+        mode: RootMode,
     ) -> RootSearch {
+        let (preferred, exact_root) = match mode {
+            RootMode::Preferred(preferred) => (preferred, false),
+            RootMode::Exact => (None, true),
+        };
         let moves = order_moves(board, preferred, 0, &self.killers, &self.history);
         let moves = filter_candidates(moves, config.policy, config.level_profile.candidate_count);
         let mut alpha = -INFINITE_SCORE;
         let mut move_scores = Vec::with_capacity(moves.len());
 
-        let exact_candidates = config.policy.is_some()
-            && (config.level_profile.policy_weight > 0 || config.level_profile.sample_policy);
+        let exact_candidates = exact_root
+            || (config.policy.is_some()
+                && (config.level_profile.policy_weight > 0 || config.level_profile.sample_policy));
         for (move_index, chess_move) in moves.into_iter().enumerate() {
             if self.should_stop() {
                 break;
             }
-
             let next_board = board.make_move_new(chess_move);
             let next_halfmove = halfmove_clock_after(board, halfmove_clock, chess_move);
             path.push(board.get_hash());
-            let (child_alpha, child_beta) = if move_index == 0 || exact_candidates {
+            let (child_alpha, child_beta) = if exact_root {
+                (-INFINITE_SCORE, INFINITE_SCORE)
+            } else if move_index == 0 || exact_candidates {
                 (-INFINITE_SCORE, -alpha)
             } else {
                 (-alpha - 1, -alpha)
@@ -716,8 +822,8 @@ fn score_from_table(score: i32, ply: usize) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        Bound, MATE_SCORE, Search, SearchLimits, bound_cutoff, halfmove_clock_after,
-        score_from_table, score_to_table,
+        Bound, MATE_SCORE, MATE_THRESHOLD, Search, SearchLimits, bound_cutoff,
+        halfmove_clock_after, score_from_table, score_to_table,
     };
     use crate::{
         features::{POLICY_MOVES, move_index, policy_from_logits},
@@ -763,6 +869,32 @@ mod tests {
             Some(ChessMove::new(Square::G6, Square::G7, None))
         );
         assert_eq!(result.score, MATE_SCORE - 1);
+    }
+
+    #[test]
+    fn exact_search_keeps_tactics_with_history() {
+        let start = Board::default();
+        let after_f3 = start.make_move_new(ChessMove::new(Square::F2, Square::F3, None));
+        let after_e5 = after_f3.make_move_new(ChessMove::new(Square::E7, Square::E5, None));
+        let mut search = Search::new(
+            SearchLimits {
+                depth: Some(2),
+                ..SearchLimits::default()
+            },
+            atomic_stop(),
+        );
+        let result = search.search_exact(
+            after_e5,
+            &[start.get_hash(), after_f3.get_hash()],
+            0,
+            |_| {},
+        );
+        let g4 = result
+            .root_moves
+            .iter()
+            .find(|scored| scored.chess_move == ChessMove::new(Square::G2, Square::G4, None))
+            .unwrap();
+        assert!(g4.score < -MATE_THRESHOLD);
     }
 
     #[test]

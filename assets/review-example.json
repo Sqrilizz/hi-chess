@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "initial_fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  "player": "white",
+  "requested_depth": 4,
+  "moves": [
+    {
+      "ply": 1,
+      "color": "white",
+      "uci": "f2f3",
+      "fen_before": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "fen_after": "rnbqkbnr/pppppppp/8/8/8/5P2/PPPPP1PP/RNBQKBNR b KQkq - 0 1",
+      "best_move": "b1c3",
+      "alternatives": [
+        {
+          "uci": "b1c3",
+          "score_cp": 10,
+          "win_probability": 0.50624967
+        },
+        {
+          "uci": "g1f3",
+          "score_cp": 10,
+          "win_probability": 0.50624967
+        },
+        {
+          "uci": "a2a4",
+          "score_cp": 7,
+          "win_probability": 0.5043749
+        }
+      ],
+      "label": "good",
+      "centipawn_loss": 9,
+      "win_probability_before": 0.50624967,
+      "win_probability_after": 0.500625,
+      "evaluation_before": 10,
+      "evaluation_after": 1,
+      "missed_win": false,
+      "search_depth": 4,
+      "nodes": 23327,
+      "comment": "Разумно."
+    },
+    {
+      "ply": 2,
+      "color": "black",
+      "uci": "e7e5",
+      "fen_before": "rnbqkbnr/pppppppp/8/8/8/5P2/PPPPP1PP/RNBQKBNR b KQkq - 0 1",
+      "fen_after": "rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq - 0 2",
+      "best_move": "b8c6",
+      "alternatives": [
+        {
+          "uci": "b8c6",
+          "score_cp": -7,
+          "win_probability": 0.49562508
+        },
+        {
+          "uci": "g8f6",
+          "score_cp": -7,
+          "win_probability": 0.49562508
+        },
+        {
+          "uci": "a7a5",
+          "score_cp": -4,
+          "win_probability": 0.4975
+        }
+      ],
+      "label": "good",
+      "centipawn_loss": 3,
+      "win_probability_before": 0.49562508,
+      "win_probability_after": 0.49750006,
+      "evaluation_before": -7,
+      "evaluation_after": -4,
+      "missed_win": false,
+      "search_depth": 4,
+      "nodes": 22690,
+      "comment": null
+    },
+    {
+      "ply": 3,
+      "color": "white",
+      "uci": "g2g4",
+      "fen_before": "rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq - 0 2",
+      "fen_after": "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2",
+      "best_move": "b1c3",
+      "alternatives": [
+        {
+          "uci": "b1c3",
+          "score_cp": 1,
+          "win_probability": 0.500625
+        },
+        {
+          "uci": "a2a4",
+          "score_cp": 1,
+          "win_probability": 0.500625
+        },
+        {
+          "uci": "e2e4",
+          "score_cp": 1,
+          "win_probability": 0.500625
+        }
+      ],
+      "label": "blunder",
+      "centipawn_loss": 29999,
+      "win_probability_before": 0.500625,
+      "win_probability_after": 0.0,
+      "evaluation_before": 1,
+      "evaluation_after": -29998,
+      "missed_win": false,
+      "search_depth": 4,
+      "nodes": 44688,
+      "comment": "Такой ход я бы не рекомендовал."
+    },
+    {
+      "ply": 4,
+      "color": "black",
+      "uci": "d8h4",
+      "fen_before": "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2",
+      "fen_after": "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3",
+      "best_move": "d8h4",
+      "alternatives": [
+        {
+          "uci": "d8h4",
+          "score_cp": -29999,
+          "win_probability": 0.0
+        },
+        {
+          "uci": "b8c6",
+          "score_cp": 1,
+          "win_probability": 0.500625
+        },
+        {
+          "uci": "g8f6",
+          "score_cp": 1,
+          "win_probability": 0.500625
+        }
+      ],
+      "label": "best",
+      "centipawn_loss": 0,
+      "win_probability_before": 0.0,
+      "win_probability_after": 0.0,
+      "evaluation_before": -29999,
+      "evaluation_after": -29999,
+      "missed_win": false,
+      "search_depth": 1,
+      "nodes": 65,
+      "comment": null
+    }
+  ],
+  "accuracy": {
+    "white": 60.29899,
+    "black": 100.0
+  },
+  "result": "0-1",
+  "closing_line": "Мне есть чему поучиться. Хорошая партия."
+}

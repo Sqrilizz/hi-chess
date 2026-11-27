@@ -27,6 +27,8 @@ burn = { version = "=0.22.1", features = [
 chess = "3.2"
 pgn-reader = "=0.29.2"
 rand = "0.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 zstd = "=0.14.5"
 
 [profile.release]

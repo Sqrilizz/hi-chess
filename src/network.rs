@@ -197,6 +197,16 @@ impl ChessNetV3 {
             .try_load_file(path)
             .map_err(|error| error.to_string())
     }
+
+    pub fn load_for_training(
+        path: impl AsRef<std::path::Path>,
+        device: &Device,
+    ) -> Result<Self, String> {
+        ChessNetV3::new(device)
+            .train()
+            .try_load_file(path)
+            .map_err(|error| error.to_string())
+    }
 }
 
 impl ResidualBlockV3 {
