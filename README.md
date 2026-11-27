@@ -4,6 +4,8 @@
 
 # HI
 
+[![CI](https://github.com/Sqrilizz/hi-chess/actions/workflows/ci.yml/badge.svg)](https://github.com/Sqrilizz/hi-chess/actions/workflows/ci.yml)
+
 **Hi. Pick your level.**
 
 HI is a Rust chess engine that combines Stockfish-style search with a Maia-inspired neural model of human play. It supports five playing levels, from beginner-like move selection to full search.
@@ -207,6 +209,15 @@ git clone --depth 1 https://github.com/official-stockfish/Stockfish.git engines/
 make -C engines/Stockfish/src profile-build ARCH=x86-64-avx512 -j
 ```
 
+Run all five level calibrations and print a Markdown summary:
+
+```bash
+./scripts/calibrate.sh engines/Stockfish/src/stockfish 20 5+0.05 matches/calibration
+./scripts/summarize_calibration.py matches/calibration
+```
+
+The first 100-game calibration report is available in [benchmarks/calibration.md](benchmarks/calibration.md).
+
 ## Verification
 
 ```bash
@@ -233,7 +244,9 @@ cargo fmt --all -- --check
 - `src/options.rs` — UCI options;
 - `src/arena.rs` — local UCI matches, clocks, results and Elo;
 - `src/uci_client.rs` — UCI process client;
-- `src/main.rs` — CLI and UCI entry point.
+- `src/main.rs` — CLI and UCI entry point;
+- `scripts/calibrate.sh` — five-level Stockfish calibration;
+- `scripts/summarize_calibration.py` — Markdown report generator.
 
 Move generation uses the MIT-licensed [`chess`](https://github.com/jordanbray/chess) crate. Search, evaluation, UCI, data preparation and the neural network are implemented in this project. Because the project uses `pgn-reader`, HI is distributed under GPL-3.0-or-later.
 

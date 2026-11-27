@@ -1,11 +1,15 @@
 [package]
 name = "hi-chess"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 rust-version = "1.95"
 authors = ["sqrilizz"]
 description = "HI is a Rust chess engine with human-like play levels"
+repository = "https://github.com/Sqrilizz/hi-chess"
+readme = "README.md"
+keywords = ["chess", "engine", "uci", "rust", "neural-network"]
+categories = ["games"]
 
 [[bin]]
 name = "hi"
