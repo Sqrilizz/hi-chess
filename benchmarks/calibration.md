@@ -320,6 +320,28 @@ One hundred games per configuration on the expanded opening suite:
 
 The final profiles are depth 3 with top 3 for Level 1 and top 6 for Level 2. They remain deliberately weaker than the search-based levels.
 
+## HI 0.12 candidate experiments
+
+The stable HI 0.11.0 configuration was challenged with direct A/B matches whenever possible. Candidate scores below are from the candidate's perspective; the current stable profile scored the complement.
+
+| Candidate | Comparison | Candidate score | Decision |
+|---|---|---:|---|
+| v3.2 model | Direct Level 5 duel vs mixed-v3 | 49.0% | Rejected |
+| TT 1M | 200-game direct Level 5 duel vs TT 256K | 49.8% | Rejected |
+| Clock divisor 10 | 200-game direct Level 5 duel vs divisor 20 | 45.0% | Rejected |
+| Level 5 policy weight 0 | 200-game direct duel vs weight 2 | 0.5% | Rejected |
+| Level 5 policy weight 3 | 200-game direct duel vs weight 2 | 49.3% | Rejected |
+| Level 5 policy weight 5 | 200-game direct duel vs weight 2 | 40.0% | Rejected |
+| Level 5 128 candidates | 200-game direct duel vs 64 candidates | 49.0% | Rejected |
+| Level 1 top-2 | 200-game direct duel vs top-3 | 40.5% | Rejected |
+| Level 2 top-4 | 200-game direct duel vs top-6 | 44.8% | Rejected |
+
+Mate distance pruning did not change node counts or fixed-depth benchmark time and was reverted without matches. Aspiration windows, quiescence delta pruning and SEE had already been rejected in earlier experiments.
+
+Separate 100-game matches against strength-limited Stockfish showed substantial variance, with Level 5 scores ranging from 38.5% to 53.0% across closely related configurations. Those matches are useful as calibration samples but were not treated as decisive proof for small changes. Direct A/B matches with identical models and settings were preferred.
+
+No candidate from this series produced a confirmed playing-strength improvement, so HI 0.11.0 remains the stable engine and model configuration.
+
 ## Next work
 
 - run larger matches with still more opening positions;
