@@ -1,6 +1,7 @@
 use chess::{Board, ChessMove, Color};
 use hi_chess::{
-    arena, bench, features::top_policy_moves, inference, perft, prepare, review, train, uci,
+    arena, bench, features::top_policy_moves, inference, perft, personality, prepare, review,
+    train, uci,
 };
 use std::{env, fmt::Display, path::PathBuf, process, str::FromStr};
 
@@ -17,6 +18,7 @@ fn main() {
         [command, rest @ ..] if command == "evaluate" => run_evaluate(rest),
         [command, rest @ ..] if command == "predict" => run_predict(rest),
         [command, rest @ ..] if command == "review" => run_review(rest),
+        [command, rest @ ..] if command == "say" => run_say(rest),
         [command, rest @ ..] if command == "match" => run_match(rest),
         [command, rest @ ..] if command == "bench" => run_bench(rest),
         [flag] if flag == "--help" || flag == "-h" => print_usage(),
@@ -162,6 +164,14 @@ fn run_bench(arguments: &[String]) {
     }
 }
 
+fn run_say(arguments: &[String]) {
+    let options = match SayOptions::parse(arguments) {
+        Ok(options) => options,
+        Err(error) => fail(&error),
+    };
+    println!("{}", personality::line(options.moment, options.variation));
+}
+
 fn run_review(arguments: &[String]) {
     let options = match ReviewOptions::parse(arguments) {
         Ok(options) => options,
@@ -187,6 +197,32 @@ fn run_match(arguments: &[String]) {
             println!("match log: {}", options.output_path.display());
         }
         Err(error) => fail(&format!("match failed: {error}")),
+    }
+}
+
+struct SayOptions {
+    moment: personality::Moment,
+    variation: usize,
+}
+
+impl SayOptions {
+    fn parse(arguments: &[String]) -> Result<Self, String> {
+        let mut moment = None;
+        let mut variation = 0;
+        let mut index = 0;
+        while index < arguments.len() {
+            match arguments[index].as_str() {
+                "--moment" => {
+                    let value = argument_value::<String>(arguments, &mut index, "--moment")?;
+                    moment = Some(value.parse()?);
+                }
+                "--variation" => variation = argument_value(arguments, &mut index, "--variation")?,
+                unknown => return Err(format!("unknown say option: {unknown}")),
+            }
+            index += 1;
+        }
+        let moment = moment.ok_or_else(|| "--moment is required".to_string())?;
+        Ok(Self { moment, variation })
     }
 }
 
@@ -392,6 +428,7 @@ fn print_usage() {
     println!(
         "  hi review --moves <uci moves> [--fen <fen>] [--depth <n>] [--player <white|black>]"
     );
+    println!("  hi say --moment <moment> [--variation <n>]");
     println!("  hi match --opponent <engine> [--level <1-5>] [--games <n>] [--tc <10+0.1>]");
     println!("  hi bench [--depth <n>]");
     println!("  hi --help");

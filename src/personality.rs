@@ -13,6 +13,27 @@ pub enum Moment {
     Draw,
 }
 
+impl std::str::FromStr for Moment {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "game-start" => Ok(Self::GameStart),
+            "thinking" => Ok(Self::Thinking),
+            "brilliant" => Ok(Self::Brilliant),
+            "best" => Ok(Self::Best),
+            "good" => Ok(Self::Good),
+            "inaccuracy" => Ok(Self::Inaccuracy),
+            "mistake" => Ok(Self::Mistake),
+            "blunder" => Ok(Self::Blunder),
+            "victory" => Ok(Self::Victory),
+            "defeat" => Ok(Self::Defeat),
+            "draw" => Ok(Self::Draw),
+            _ => Err("unknown personality moment".to_string()),
+        }
+    }
+}
+
 pub fn line(moment: Moment, variation: usize) -> &'static str {
     let lines: &[&str] = match moment {
         Moment::GameStart => &[
@@ -88,6 +109,12 @@ pub fn line(moment: Moment, variation: usize) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{Moment, line};
+
+    #[test]
+    fn parses_moment_names() {
+        assert_eq!("blunder".parse::<Moment>(), Ok(Moment::Blunder));
+        assert!("unknown".parse::<Moment>().is_err());
+    }
 
     #[test]
     fn every_moment_has_nonempty_lines() {

@@ -217,6 +217,14 @@ The review includes `brilliant`, `great`, `best`, `good`, `inaccuracy`, `mistake
 
 `Brilliant` is deliberately conservative: it requires a winning best move that is either the only strong option or a material sacrifice. The classifier is inspired by Chess.com-style game review but is not the same proprietary algorithm.
 
+Live original HI reactions are also available to a frontend:
+
+```bash
+./target/release/hi say --moment blunder --variation 1
+```
+
+Supported moments are `game-start`, `thinking`, `brilliant`, `best`, `good`, `inaccuracy`, `mistake`, `blunder`, `victory`, `defeat` and `draw`.
+
 ## Engine matches
 
 HI can play local matches against any UCI engine, including Stockfish:
