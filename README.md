@@ -67,7 +67,7 @@ stop
 quit
 ```
 
-After `go`, HI emits `info` lines followed by `bestmove`. The `stop` command ends the current search early.
+After `go`, HI emits `info` lines followed by `bestmove`. The `stop` command ends the current search early. Frontend integration details for UCI, review JSON and personality commands are in [docs/app-integration.md](docs/app-integration.md).
 
 ### Neural level options
 
