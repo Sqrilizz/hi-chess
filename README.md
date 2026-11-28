@@ -48,7 +48,7 @@ cargo build --release
 
 The executable is written to `target/release/hi`.
 
-A stripped Linux x86-64 binary and the `hi-v3.bpk` model are also available in the [HI 0.10.0 release](https://github.com/Sqrilizz/hi-chess/releases/tag/v0.10.0). Extract the model into `models/hi-v3.bpk` next to the executable before running with neural levels.
+A stripped Linux x86-64 binary and the `hi-v3-mixed.bpk` model are also available in the [HI 0.11.0 release](https://github.com/Sqrilizz/hi-chess/releases/tag/v0.11.0). Extract the model into `models/hi-v3-mixed.bpk` next to the executable before running with neural levels.
 
 ## Run as a UCI engine
 
@@ -73,15 +73,15 @@ After `go`, HI emits `info` lines followed by `bestmove`. The `stop` command end
 
 ```text
 setoption name UseModel value true
-setoption name ModelPath value models/hi-v3.bpk
+setoption name ModelPath value models/hi-v3-mixed.bpk
 setoption name Level value 3
 setoption name OpponentElo value 1500
 ```
 
 | Level | Target profile | Behavior |
 |---:|---:|---|
-| 1 | ~800 | Samples from the human-move policy with a depth-2 safety filter |
-| 2 | ~1100 | Policy sampling with a depth-2 safety filter |
+| 1 | ~800 | Samples from the top 3 policy moves with a depth-3 safety filter |
+| 2 | ~1100 | Samples from the top 6 policy moves with a depth-3 safety filter |
 | 3 | ~1400 | Searches the 8 most likely model candidates |
 | 4 | ~1700 | Searches 8 candidates more deeply with a policy-weight bonus |
 | 5 | ~2100 | Full search guided by the 64 most likely model moves |
@@ -138,11 +138,11 @@ To train an already prepared dataset:
   --device discrete
 ```
 
-Use `--resume <model.bpk>` to fine-tune an existing v3 checkpoint with a fresh optimizer. Evaluate a checkpoint on a prepared validation set with:
+Use `--resume <model.bpk>` to fine-tune an existing v3 checkpoint with a fresh optimizer. The complete mixed 2018/2026 fine-tune used for the default model is available as `./scripts/train_mixed_v3.sh`. Evaluate a checkpoint on a prepared validation set with:
 
 ```bash
 ./target/release/hi evaluate \
-  --model models/hi-v3.bpk \
+  --model models/hi-v3-mixed.bpk \
   --validation data/validation-v3.bin \
   --device discrete
 ```
@@ -162,21 +162,30 @@ Training and inference are implemented in Rust. GPU execution uses wgpu/Vulkan. 
 
 Datasets and model weights are ignored by Git and must be generated locally.
 
-### `hi-v3` quality
+### `hi-v3` base quality
 
-Measured on 240,000 held-out positions from the same four monthly archives:
+Measured on 240,000 held-out modern positions:
 
-- best epoch: 4;
-- top-1 human move accuracy: **43.71%**;
-- top-3 human move accuracy: **71.33%**;
-- WDL accuracy: **55.29%**;
-- validation loss: 2.0558;
+- top-1: **43.71%**;
+- top-3: **71.33%**;
+- WDL: **55.29%**;
 - White top-1: **43.39%**;
-- Black top-1: **44.04%**;
-- model size: approximately 11 MB;
-- SHA256: `5dda0c2073dc7659318fa807474f51f2cb8f984131aad83b2b67de6cd61673a5`.
+- Black top-1: **44.04%**.
 
-The model was trained on 2,400,000 positions from 115,988 games. The best validation epoch is saved in `models/hi-v3.bpk` and is the default starting with HI 0.10.0. The v2 and v3 accuracy numbers use different datasets and are not a controlled head-to-head comparison. Initial 20-game matches improved every level's score against the same Stockfish targets. In a 100-game Level 5 match against Stockfish 2100, the final v3 profile scored 48.5% versus 39.5% for v2; see [benchmarks/calibration.md](benchmarks/calibration.md).
+The base model was trained on 2,400,000 positions from 115,988 games. Its SHA256 is `5dda0c2073dc7659318fa807474f51f2cb8f984131aad83b2b67de6cd61673a5`.
+
+### `hi-v3-mixed` quality
+
+The default model fine-tunes the base checkpoint for two epochs on 1,800,000 positions sampled evenly from July 2018, September 2026 and October 2026.
+
+| Validation | Top-1 | Top-3 | WDL | White top-1 | Black top-1 |
+|---|---:|---:|---:|---:|---:|
+| Modern 2026 | **45.64%** | **73.18%** | **56.30%** | **45.26%** | **46.03%** |
+| Mixed 2018/2026 | **46.13%** | **73.51%** | **57.60%** | **45.84%** | **46.42%** |
+
+The mixed model improved every reported metric over the base checkpoint on both validation sets. On the expanded opening suite it scored 47.5% against Stockfish 2100 versus 40.0% for the base model, and won a direct 100-game Level 5 duel 44-30-26, 59.0%. Its SHA256 is `5565ac9af2ca46c6d9e5b740973cead7aaa8c86cc9a5604fa5fc560d7a749ff6`.
+
+The mixed model is saved as `models/hi-v3-mixed.bpk` and is the default starting with HI 0.11.0. See [benchmarks/calibration.md](benchmarks/calibration.md) for full results.
 
 ### Historical `hi-v2` quality
 
@@ -195,7 +204,7 @@ The model was trained on 960,000 positions from 46,441 games. The best validatio
 
 ```bash
 ./target/release/hi predict \
-  --model models/hi-v3.bpk \
+  --model models/hi-v3-mixed.bpk \
   --fen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" \
   --elo 1500 \
   --opponent-elo 1600 \

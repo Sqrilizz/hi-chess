@@ -16,9 +16,9 @@ pub fn profile(level: u8) -> LevelProfile {
     match level.clamp(MIN_LEVEL, MAX_LEVEL) {
         1 => LevelProfile {
             own_elo: 800,
-            temperature: 1.0,
-            candidate_count: 6,
-            max_depth: 2,
+            temperature: 0.9,
+            candidate_count: 3,
+            max_depth: 3,
             policy_weight: 0,
             sample_policy: true,
             max_score_drop: 250,
@@ -26,8 +26,8 @@ pub fn profile(level: u8) -> LevelProfile {
         2 => LevelProfile {
             own_elo: 1_100,
             temperature: 0.8,
-            candidate_count: 8,
-            max_depth: 2,
+            candidate_count: 6,
+            max_depth: 3,
             policy_weight: 0,
             sample_policy: true,
             max_score_drop: 150,
@@ -81,8 +81,8 @@ mod tests {
     fn low_levels_sample_and_high_levels_search() {
         assert!(profile(1).sample_policy);
         assert!(profile(2).sample_policy);
-        assert_eq!(profile(1).max_depth, 2);
-        assert_eq!(profile(2).max_depth, 2);
+        assert_eq!(profile(1).max_depth, 3);
+        assert_eq!(profile(2).max_depth, 3);
         assert!(profile(1).max_score_drop > 0);
         assert!(profile(2).max_score_drop > 0);
         assert!(!profile(3).sample_policy);

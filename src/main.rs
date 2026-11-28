@@ -236,7 +236,7 @@ struct EvaluateOptions {
 impl EvaluateOptions {
     fn parse(arguments: &[String]) -> Result<Self, String> {
         let mut options = Self {
-            model: PathBuf::from("models/hi-v3.bpk"),
+            model: PathBuf::from("models/hi-v3-mixed.bpk"),
             validation: PathBuf::from("data/validation-v3.bin"),
             batch_size: 128,
             device: train::DeviceSelection::Auto,
@@ -349,7 +349,7 @@ struct PredictOptions {
 impl PredictOptions {
     fn parse(arguments: &[String]) -> Result<Self, String> {
         let mut options = Self {
-            model: PathBuf::from("models/hi-v3.bpk"),
+            model: PathBuf::from("models/hi-v3-mixed.bpk"),
             fen: START_FEN.to_string(),
             elo: 1_500,
             opponent_elo: 1_500,

@@ -992,9 +992,9 @@ mod tests {
             result.best_move,
             Some(ChessMove::new(Square::E2, Square::E4, None))
         );
-        assert_eq!(result.depth, 2);
+        assert_eq!(result.depth, 3);
         assert!(result.nodes > 0);
-        assert!(result.root_moves.len() <= 6);
+        assert!(result.root_moves.len() <= 3);
     }
 
     #[test]

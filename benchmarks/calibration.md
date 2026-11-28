@@ -298,18 +298,32 @@ The mixed model was also calibrated across all five levels with 100 games per le
 
 | Level | Opponent | W-D-L | Score | Rough HI Elo |
 |---:|---:|---:|---:|---:|
-| 1 | 800 | 10-7-83 | 13.5% | 522.7 |
-| 2 | 1100 | 20-7-73 | 23.5% | 864.1 |
+| 1 | 800 | 14-12-74 | 20.0% | 540.0 |
+| 2 | 1100 | 24-6-70 | 27.0% | 901.4 |
 | 3 | 1400 | 58-13-29 | 64.5% | 1555.2 |
 | 4 | 1700 | 34-9-57 | 38.5% | 1653.2 |
 | 5 | 2100 | 44-7-49 | 47.5% | 2162.3 |
 
-The rough Elo estimates remain monotonic. Levels 1–2 are still below their advertised targets and require stronger safety search.
+The rough Elo estimates remain monotonic. The final table uses the tuned Level 1 and Level 2 profiles.
+
+### Weak-level safety-search A/B
+
+One hundred games per configuration on the expanded opening suite:
+
+| Level | Profile | W-D-L | Score |
+|---:|---|---:|---:|
+| 1 | Depth 2, top 6 | 10-7-83 | 13.5% |
+| 1 | Depth 3, top 4 | 12-3-85 | 13.5% |
+| 1 | Depth 3, top 3, temperature 0.9 | 14-12-74 | 20.0% |
+| 2 | Depth 2, top 8 | 20-7-73 | 23.5% |
+| 2 | Depth 3, top 6 | 24-6-70 | 27.0% |
+
+The final profiles are depth 3 with top 3 for Level 1 and top 6 for Level 2. They remain deliberately weaker than the search-based levels.
 
 ## Next work
 
-- run larger v3 matches with more opening positions;
+- run larger matches with still more opening positions;
 - tune Level 3 candidate count and policy weight toward its advertised target;
-- improve safety search for Levels 1–2;
+- improve WDL accuracy with additional training;
 - tune transposition-table size and replacement policy;
-- package the engine and model for the desktop coach application.
+- integrate move review, avatar states and personality lines into the desktop coach application.
