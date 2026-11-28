@@ -2,7 +2,7 @@ use crate::{
     search::{halfmove_clock_after, insufficient_material},
     uci_client::UciEngine,
 };
-use chess::{Board, BoardStatus, ChessMove, Color};
+use chess::{Board, BoardStatus, ChessMove, Color, Piece};
 use std::{
     env,
     fmt::Display,
@@ -546,8 +546,26 @@ fn load_openings(path: impl AsRef<Path>) -> Result<Vec<String>, String> {
         return Err("opening file must contain at least one FEN".to_string());
     }
     for opening in &openings {
-        Board::from_str(opening)
+        let board = Board::from_str(opening)
             .map_err(|error| format!("invalid opening FEN {opening}: {error}"))?;
+        let white_kings =
+            (*board.pieces(Piece::King) & *board.color_combined(Color::White)).popcnt();
+        let black_kings =
+            (*board.pieces(Piece::King) & *board.color_combined(Color::Black)).popcnt();
+        let piece_count = [
+            Piece::Pawn,
+            Piece::Knight,
+            Piece::Bishop,
+            Piece::Rook,
+            Piece::Queen,
+            Piece::King,
+        ]
+        .into_iter()
+        .map(|piece| board.pieces(piece).popcnt())
+        .sum::<u32>();
+        if white_kings != 1 || black_kings != 1 || piece_count > 32 {
+            return Err(format!("invalid opening piece count: {opening}"));
+        }
     }
     Ok(openings)
 }
@@ -656,6 +674,20 @@ mod tests {
         let openings = load_openings(&path).unwrap();
         std::fs::remove_file(path).unwrap();
         assert_eq!(openings, vec![START_FEN.to_string()]);
+    }
+
+    #[test]
+    fn rejects_openings_with_extra_pieces() {
+        let path =
+            std::env::temp_dir().join(format!("hi-openings-invalid-{}.fen", std::process::id()));
+        std::fs::write(
+            &path,
+            "rnbqkb1r/pp3ppp/4pn2/2pp4/2PP4/2N2N2/PP2PPPP/R1BQKBNR w KQkq - 0 1\n",
+        )
+        .unwrap();
+        let result = load_openings(&path);
+        std::fs::remove_file(path).unwrap();
+        assert!(result.is_err());
     }
 
     #[test]
