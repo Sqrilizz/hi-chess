@@ -269,6 +269,43 @@ Widening the Level 5 candidate set from 32 to 64 and reducing the policy weight 
 
 A 100-game direct duel between the initial v3 Level 5 profile and v2 scored 32-34-34, 49.0% for v3. Both engines shared the same GPU, so the larger v3 model competes for inference time with v2; the separate Stockfish matches are the cleaner playing-strength comparison.
 
+## Mixed-data v3 fine-tune
+
+A v3 checkpoint was fine-tuned for two epochs at learning rate 0.0002 with a fresh Adam optimizer. The training set contained 1,800,000 positions sampled evenly from July 2018, September 2026 and October 2026; validation contained 180,000 positions from the same three archives.
+
+| Validation | Model | Loss | Top-1 | Top-3 | WDL | White top-1 | Black top-1 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Mixed | Original v3 | 2.0027 | 44.83% | 72.24% | 56.85% | 44.54% | 45.12% |
+| Mixed | Fine-tuned v3 | 1.9480 | 46.13% | 73.51% | 57.60% | 45.84% | 46.42% |
+| Modern 2026 | Original v3 | 2.0558 | 43.71% | 71.33% | 55.29% | 43.39% | 44.04% |
+| Modern 2026 | Fine-tuned v3 | 1.9694 | 45.64% | 73.18% | 56.30% | 45.26% | 46.03% |
+
+The fine-tuned model improved every reported metric on both validation sets. Its SHA256 is `5565ac9af2ca46c6d9e5b740973cead7aaa8c86cc9a5604fa5fc560d7a749ff6`.
+
+### Mixed-model match results
+
+One hundred Level 5 games at 5+0.05 on the expanded 59-position opening suite:
+
+| Match | W-D-L | Score | Rough HI Elo |
+|---|---:|---:|---:|
+| Original v3 vs Stockfish 2100 | 38-4-58 | 40.0% | 1959.2 |
+| Mixed v3 vs Stockfish 2100 | 44-7-49 | 47.5% | 2162.3 |
+| Mixed v3 vs original v3 | 44-30-26 | 59.0% | 2177.9 |
+
+Against Stockfish, the mixed model improved White from 19-2-29 to 20-3-27 and Black from 19-2-29 to 24-4-22.
+
+The mixed model was also calibrated across all five levels with 100 games per level on the expanded opening suite:
+
+| Level | Opponent | W-D-L | Score | Rough HI Elo |
+|---:|---:|---:|---:|---:|
+| 1 | 800 | 10-7-83 | 13.5% | 522.7 |
+| 2 | 1100 | 20-7-73 | 23.5% | 864.1 |
+| 3 | 1400 | 58-13-29 | 64.5% | 1555.2 |
+| 4 | 1700 | 34-9-57 | 38.5% | 1653.2 |
+| 5 | 2100 | 44-7-49 | 47.5% | 2162.3 |
+
+The rough Elo estimates remain monotonic. Levels 1–2 are still below their advertised targets and require stronger safety search.
+
 ## Next work
 
 - run larger v3 matches with more opening positions;
